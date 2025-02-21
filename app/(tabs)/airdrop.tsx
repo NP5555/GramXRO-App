@@ -61,7 +61,7 @@ export default function AirdropScreen() {
       window.open(url, '_blank');
     } else {
       // On mobile, use Linking
-      Linking.openURL(url);
+      open(url);
     }
   };
 
@@ -167,6 +167,7 @@ export default function AirdropScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    // padding:10,
     flex: 1,
     backgroundColor: '#121212',
   },

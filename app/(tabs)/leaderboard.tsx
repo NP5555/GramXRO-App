@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const leaderboardData = [
-  { id: 1, name: 'Mr. Shahid', shares: 2874, coins: 6459.25 },
+  { id: 1, name: 'Julio', shares: 2874, coins: 6459.25 },
   { id: 2, name: 'Sarah K.', shares: 2456, coins: 5526.00 },
   { id: 3, name: 'Alex M.', shares: 2198, coins: 4945.50 },
   { id: 4, name: 'John D.', shares: 1987, coins: 4470.75 },
