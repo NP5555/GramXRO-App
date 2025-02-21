@@ -1,11 +1,32 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React from 'react';
 
 export default function MainScreen() {
   const insets = useSafeAreaInsets();
+  const animatedBorder = new Animated.Value(0);
+  const animatedCount = new Animated.Value(0);
   
+  // Add animation effect
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedBorder, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedBorder, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, []);
+
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -19,40 +40,62 @@ export default function MainScreen() {
       </View>
 
       <View style={styles.statsContainer}>
-        <LinearGradient
-          colors={['#2A2A2A', '#1A1A1A']}
-          style={styles.statsCard}>
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Total Tokens Sold</Text>
-              <Text style={styles.statValue}>2.5M</Text>
+        <Animated.View style={[
+          styles.statsCard,
+          {
+            transform: [{
+              scale: animatedBorder.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05],
+              })
+            }]
+          }
+        ]}>
+          <LinearGradient
+            colors={['#2A2A2A', '#1A1A1A']}
+            style={{ padding: 20, borderRadius: 16 }}>
+            <View style={styles.statRow}>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Total Tokens Sold</Text>
+                <Text style={styles.statValue}>2.5M</Text>
+              </View>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Total Users</Text>
+                <Text style={styles.statValue}>125K</Text>
+              </View>
             </View>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Total Users</Text>
-              <Text style={styles.statValue}>125K</Text>
+            <View style={styles.statRow}>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Total Airdrops</Text>
+                <Text style={styles.statValue}>500K</Text>
+              </View>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>Token Price</Text>
+                <Text style={styles.statValue}>$1.38</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Total Airdrops</Text>
-              <Text style={styles.statValue}>500K</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Token Price</Text>
-              <Text style={styles.statValue}>$1.38</Text>
-            </View>
-          </View>
-        </LinearGradient>
+          </LinearGradient>
+        </Animated.View>
       </View>
 
       <View style={styles.batchInfo}>
         <Text style={styles.batchTitle}>Current Batch: #9</Text>
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <LinearGradient
-              colors={['#FFD700', '#FFA500']}
-              style={[styles.progress, { width: '75%' }]}
-            />
+            <Animated.View style={[
+              styles.progress,
+              {
+                width: animatedBorder.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['75%', '80%'],
+                })
+              }
+            ]}>
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={{ height: '100%' }}
+              />
+            </Animated.View>
           </View>
           <Text style={styles.progressText}>75,779 / 100,000 users</Text>
         </View>
@@ -106,15 +149,15 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     borderRadius: 16,
-    padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-    borderWidth: 1,
-    borderColor: '#FFD700', // Attractive yellow border
-    shadowColor: '#FFD700', // Shiny glow effect
-    shadowOpacity: 0.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
     backdropFilter: 'blur(10px)',
+    elevation: 10,
   },
   statRow: {
     flexDirection: 'row',
@@ -148,11 +191,11 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 4,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#FFD700', // Yellow border on progress bar
+    borderWidth: 2,
+    borderColor: '#FFD700',
   },
   progress: {
     height: '100%',
@@ -181,7 +224,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FFD700', // Yellow border on referral box
+    borderColor: '#FFD700',
     shadowColor: '#FFD700',
     shadowOpacity: 0.4,
     shadowOffset: { width: 0, height: 4 },
@@ -205,7 +248,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FFD700', // Yellow border on share button
+    borderColor: '#FFD700',
     shadowColor: '#FFD700',
     shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 4 },
