@@ -3,6 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React from 'react';
+import * as Clipboard from 'expo-clipboard';
+import { Alert } from 'react-native';
 
 export default function MainScreen() {
   const insets = useSafeAreaInsets();
@@ -27,6 +29,12 @@ export default function MainScreen() {
     ).start();
   }, []);
 
+  const handleCopyCode = async () => {
+    const referralCode = '3UEQQS1';
+    await Clipboard.setStringAsync(referralCode);
+    Alert.alert('Success', 'Referral code copied to clipboard!');
+  };
+
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -34,9 +42,16 @@ export default function MainScreen() {
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.username}>John Doe</Text>
         </View>
-        <TouchableOpacity style={styles.profileButton}>
+        {/* <TouchableOpacity style={styles.profileButton}>
           <Ionicons name="person-circle" size={52} color="#FFD700" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
+
+<TouchableOpacity style={styles.profileButton}>
+  <Image 
+    source={require('../../assets/images/man.png')} 
+    style={{ width: 52, height: 52, borderRadius: 26 }} 
+  />
+</TouchableOpacity>
       </View>
 
       <View style={styles.statsContainer}>
@@ -105,7 +120,10 @@ export default function MainScreen() {
         <Text style={styles.referralTitle}>Your Referral Code</Text>
         <View style={styles.referralCode}>
           <Text style={styles.codeText}>3UEQQS1</Text>
-          <TouchableOpacity style={styles.copyButton}>
+          <TouchableOpacity 
+            style={styles.copyButton}
+            onPress={handleCopyCode}
+          >
             <Ionicons name="copy" size={20} color="#FFD700" />
           </TouchableOpacity>
         </View>
