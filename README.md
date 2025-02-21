@@ -3,6 +3,20 @@
 ## 🚀 Overview
 GramXRO is a cutting-edge ICO and Airdrop dashboard application designed for managing token sales, airdrop distributions, and referral-based rewards. The app provides real-time updates, batch sale progressions, a leaderboard, and an interactive user experience.
 
+## 📸 App Screenshots
+
+<p align="center">
+  <img src="./assets/preview/iPhone-14-Plus-localhost.png" width="45%"/>
+  <img src="./assets/preview/iPhone-14-Plus-localhost (1).png" width="45%"/>
+</p>
+
+<p align="center">
+  <img src="./assets/preview/iPhone-14-Plus-localhost (2).png" width="45%"/>
+  <img src="./assets/preview/iPhone-14-Plus-localhost (3).png" width="45%"/>
+</p>
+
+
+
 ## 📌 Features
 ### **1. User Dashboard**
 - Personalized greeting with profile icon
