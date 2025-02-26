@@ -2,17 +2,21 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Animated }
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Alert } from 'react-native';
+import { api, Batch, User } from '../services/api';
 
-export default function MainScreen() {
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const animatedBorder = new Animated.Value(0);
   const animatedCount = new Animated.Value(0);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentBatch, setCurrentBatch] = useState<Batch | null>(null);
+  const [loading, setLoading] = useState(true);
   
   // Add animation effect
-  React.useEffect(() => {
+  useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(animatedBorder, {
@@ -29,18 +33,42 @@ export default function MainScreen() {
     ).start();
   }, []);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Using ID 1 for demo purposes - in real app, this would come from auth
+        const [user, batch] = await Promise.all([
+          api.getCurrentUser(1),
+          api.getCurrentBatch()
+        ]);
+        setCurrentUser(user);
+        setCurrentBatch(batch);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleCopyCode = async () => {
     const referralCode = '3UEQQS1';
     await Clipboard.setStringAsync(referralCode);
     Alert.alert('Success', 'Referral code copied to clipboard!');
   };
 
+  if (loading) {
+    return <View style={styles.container}><Text>Loading...</Text></View>;
+  }
+
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.username}>John Doe</Text>
+          <Text style={styles.username}>{currentUser?.name}</Text>
         </View>
         {/* <TouchableOpacity style={styles.profileButton}>
           <Ionicons name="person-circle" size={52} color="#FFD700" />
@@ -72,21 +100,21 @@ export default function MainScreen() {
             <View style={styles.statRow}>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Total Tokens Sold</Text>
-                <Text style={styles.statValue}>2.5M</Text>
+                <Text style={styles.statValue}>{currentBatch?.tokensSold.toLocaleString()}</Text>
               </View>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Total Users</Text>
-                <Text style={styles.statValue}>125K</Text>
+                <Text style={styles.statValue}>{currentUser?.shares.toLocaleString()}</Text>
               </View>
             </View>
             <View style={styles.statRow}>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Total Airdrops</Text>
-                <Text style={styles.statValue}>500K</Text>
+                <Text style={styles.statValue}>{currentUser?.tokens.toLocaleString()}</Text>
               </View>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Token Price</Text>
-                <Text style={styles.statValue}>$1.38</Text>
+                <Text style={styles.statValue}>${currentBatch?.currentPrice.toFixed(2)}</Text>
               </View>
             </View>
           </LinearGradient>
@@ -94,32 +122,47 @@ export default function MainScreen() {
       </View>
 
       <View style={styles.batchInfo}>
-        <Text style={styles.batchTitle}>Current Batch: #9</Text>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <Animated.View style={[
-              styles.progress,
-              {
-                width: animatedBorder.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['75%', '80%'],
-                })
-              }
-            ]}>
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={{ height: '100%' }}
-              />
-            </Animated.View>
-          </View>
-          <Text style={styles.progressText}>75,779 / 100,000 users</Text>
-        </View>
+        <Animated.View style={[
+          styles.statsCard,
+          {
+            transform: [{
+              scale: animatedBorder.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05],
+              })
+            }]
+          }
+        ]}>
+          <LinearGradient
+            colors={['#2A2A2A', '#1A1A1A']}
+            style={{ padding: 20, borderRadius: 16 }}>
+            <Text style={styles.batchTitle}>Current Batch: #{currentBatch?.batchNumber}</Text>
+            <View style={styles.batchDetailsContainer}>
+              <View style={styles.batchDetailRow}>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>Price</Text>
+                  <Text style={styles.statValue}>${currentBatch?.currentPrice.toFixed(2)}</Text>
+                </View>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>Next Price</Text>
+                  <Text style={styles.statValue}>${currentBatch?.nextPrice.toFixed(2)}</Text>
+                </View>
+              </View>
+              <View style={styles.progressContainer}>
+                <Text style={styles.statLabel}>Progress</Text>
+                <Text style={styles.statValue}>
+                  {((currentBatch?.tokensSold / currentBatch?.totalTokens) * 100).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
       </View>
 
       <View style={styles.referralSection}>
         <Text style={styles.referralTitle}>Your Referral Code</Text>
         <View style={styles.referralCode}>
-          <Text style={styles.codeText}>3UEQQS1</Text>
+          <Text style={styles.codeText}>{currentUser?.referralCode}</Text>
           <TouchableOpacity 
             style={styles.copyButton}
             onPress={handleCopyCode}
@@ -202,28 +245,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  batchDetailsContainer: {
+    gap: 20,
+  },
+  batchDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   progressContainer: {
-    marginTop: 8,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#FFD700',
-  },
-  progress: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#FFD700',
-  },
-  progressText: {
-    color: '#BBB',
-    fontSize: 12,
-    marginTop: 4,
+    flex: 1,
   },
   referralSection: {
     padding: 20,

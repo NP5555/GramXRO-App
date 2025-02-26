@@ -1,78 +1,43 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
+import { api } from '../services/api';
 
-const tasks = [
-  {
-    id: 1,
-    platform: 'telegram',
-    title: 'Join Our Telegram Community',
-    icon: 'paper-plane',
-    reward: 0.25,
-    url: 'https://t.me/yourgroup',
-    completed: false,
-  },
-  {
-    id: 2,
-    platform: 'instagram',
-    title: 'Follow on Instagram',
-    icon: 'logo-instagram',
-    reward: 0.25,
-    url: 'https://instagram.com/youraccount',
-    completed: false,
-  },
-  {
-    id: 3,
-    platform: 'youtube',
-    title: 'Subscribe on YouTube',
-    icon: 'logo-youtube',
-    reward: 0.25,
-    url: 'https://youtube.com/@yourchannel',
-    completed: false,
-  },
-  {
-    id: 4,
-    platform: 'twitter',
-    title: 'Follow on Twitter',
-    icon: 'logo-twitter',
-    reward: 0.25,
-    url: 'https://twitter.com/youraccount',
-    completed: false,
-  },
-  {
-    id: 5,
-    platform: 'discord',
-    title: 'Join Our Discord Server',
-    icon: 'logo-discord',
-    reward: 0.25,
-    url: 'https://discord.gg/yourserver',
-    completed: false,
-  },
+const TASKS = [
+  { task: "Join Our Telegram Community", reward: 0.25 },
+  { task: "Follow on Instagram", reward: 0.25 },
+  { task: "Subscribe on YouTube", reward: 0.25 },
+  { task: "Follow on Twitter", reward: 0.25 },
 ];
 
 export default function AirdropScreen() {
   const insets = useSafeAreaInsets();
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
-  const handleTaskClick = (url: string) => {
-    // On web, open in new tab
-    if (Platform.OS === 'web') {
-      window.open(url, '_blank');
-    } else {
-      // On mobile, use Linking
-      open(url);
+  const handleTaskComplete = async (task: string) => {
+    try {
+      // Using ID 1 for demo purposes - in real app, this would come from auth
+      const result = await api.completeTask(1, task);
+      if (result.success) {
+        setCompletedTasks(prev => new Set([...prev, task]));
+        Alert.alert('Success', `You earned ${0.25} tokens!`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to complete task');
     }
   };
 
-  const totalEarned = tasks.filter(task => task.completed).reduce((sum, task) => sum + task.reward, 0);
-  const totalAvailable = tasks.reduce((sum, task) => sum + task.reward, 0);
+  const totalEarned = TASKS.filter(task => completedTasks.has(task.task)).reduce((sum, task) => sum + task.reward, 0);
+  const totalAvailable = TASKS.reduce((sum, task) => sum + task.reward, 0);
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Earn More Coins</Text>
+          <Text style={styles.title}>Earn More Tokens</Text>
           <Text style={styles.subtitle}>Complete tasks to earn rewards</Text>
         </View>
         <TouchableOpacity style={styles.referButton}>
@@ -87,43 +52,37 @@ export default function AirdropScreen() {
           <View style={styles.balanceRow}>
             <View>
               <Text style={styles.balanceLabel}>Your Balance</Text>
-              <Text style={styles.balanceValue}>{totalEarned.toFixed(2)} Coins</Text>
+              <Text style={styles.balanceValue}>{totalEarned.toFixed(2)} Tokens</Text>
             </View>
             <View style={styles.divider} />
             <View>
               <Text style={styles.balanceLabel}>Available to Earn</Text>
-              <Text style={styles.balanceValue}>{(totalAvailable - totalEarned).toFixed(2)} Coins</Text>
+              <Text style={styles.balanceValue}>{(totalAvailable - totalEarned).toFixed(2)} Tokens</Text>
             </View>
           </View>
-          <Text style={styles.listingPrice}>Listing Price: $1.10 per coin</Text>
+          <Text style={styles.listingPrice}>Listing Price: $1.10 per token</Text>
         </LinearGradient>
       </View>
 
       <View style={styles.tasksSection}>
         <Text style={styles.sectionTitle}>Complete Tasks to Earn</Text>
-        {tasks.map((task) => (
-          <TouchableOpacity 
-            key={task.id} 
+        {TASKS.map((task) => (
+          <TouchableOpacity
+            key={task.task}
             style={[
-              styles.taskCard,
-              task.completed && styles.taskCardCompleted
+              styles.taskItem,
+              completedTasks.has(task.task) && styles.completedTask
             ]}
-            onPress={() => handleTaskClick(task.url)}
+            onPress={() => handleTaskComplete(task.task)}
+            disabled={completedTasks.has(task.task)}
           >
-            <View style={[styles.taskIcon, task.completed && styles.taskIconCompleted]}>
-              <Ionicons name={task.icon} size={24} color={task.completed ? '#4CAF50' : '#FFD700'} />
+            <View>
+              <Text style={styles.taskText}>{task.task}</Text>
+              <Text style={styles.rewardText}>Reward: {task.reward} tokens</Text>
             </View>
-            <View style={styles.taskInfo}>
-              <Text style={styles.taskTitle}>{task.title}</Text>
-              <Text style={styles.taskReward}>Get {task.reward} Coins</Text>
-            </View>
-            <View style={styles.taskStatus}>
-              {task.completed ? (
-                <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-              ) : (
-                <Ionicons name="arrow-forward" size={24} color="#FFD700" />
-              )}
-            </View>
+            {completedTasks.has(task.task) && (
+              <Text style={styles.completedText}>✓ Completed</Text>
+            )}
           </TouchableOpacity>
         ))}
       </View>
@@ -137,7 +96,7 @@ export default function AirdropScreen() {
             <View>
               <Text style={styles.referralTitle}>Invite Friends & Earn</Text>
               <Text style={styles.referralDescription}>
-                Get 0.5 coins for each friend who joins and completes a task
+                Get 0.5 tokens for each friend who joins and completes a task
               </Text>
             </View>
             <TouchableOpacity style={styles.shareButton}>
@@ -156,7 +115,7 @@ export default function AirdropScreen() {
             <Ionicons name="gift" size={32} color="#000" />
             <Text style={styles.scratchCardTitle}>Complete 10 Referrals</Text>
             <Text style={styles.scratchCardDescription}>
-              Get a scratch card with rewards up to 50 coins!
+              Get a scratch card with rewards up to 50 tokens!
             </Text>
           </View>
         </LinearGradient>
@@ -241,52 +200,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  taskCard: {
+  taskItem: {
+    padding: 15,
+    backgroundColor: '#f5f5f5',
+    marginBottom: 10,
+    borderRadius: 8,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.7)', // Gold thin border
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    backdropFilter: 'blur(8px)',
   },
-  taskCardCompleted: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    opacity: 0.8,
+  completedTask: {
+    backgroundColor: '#e8f5e9',
   },
-  taskIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  taskIconCompleted: {
-    backgroundColor: '#1A1A1A',
-  },
-  taskInfo: {
-    flex: 1,
-  },
-  taskTitle: {
-    color: '#FFF',
+  taskText: {
     fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '500',
   },
-  taskReward: {
-    color: '#FFD700',
+  rewardText: {
     fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
-  taskStatus: {
-    padding: 8,
+  completedText: {
+    color: '#4caf50',
+    fontWeight: 'bold',
   },
   referralSection: {
     padding: 20,

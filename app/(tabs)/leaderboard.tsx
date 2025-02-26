@@ -1,18 +1,37 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-const leaderboardData = [
-  { id: 1, name: 'Julio', shares: 2874, coins: 6459.25 },
-  { id: 2, name: 'Sarah K.', shares: 2456, coins: 5526.00 },
-  { id: 3, name: 'Alex M.', shares: 2198, coins: 4945.50 },
-  { id: 4, name: 'John D.', shares: 1987, coins: 4470.75 },
-  { id: 5, name: 'Maria R.', shares: 1854, coins: 4171.50 },
-];
+import { api, LeaderboardEntry } from '../services/api';
 
 export default function LeaderboardScreen() {
   const insets = useSafeAreaInsets();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const data = await api.getLeaderboard();
+        setLeaderboard(data);
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeaderboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
@@ -47,30 +66,34 @@ export default function LeaderboardScreen() {
       </View>
 
       <View style={styles.rankingsSection}>
-        {leaderboardData.map((user, index) => (
-          <View key={user.id} style={styles.rankingCard}>
-            <View style={styles.rankPosition}>
-              <Text style={styles.rankNumber}>#{index + 1}</Text>
-              {index < 3 && (
-                <Ionicons
-                  name="trophy"
-                  size={20}
-                  color={
-                    index === 0
-                      ? '#FFD700'
-                      : index === 1
-                      ? '#C0C0C0'
-                      : '#CD7F32'
-                  }
-                />
-              )}
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userStats}>
-                {user.shares} Shares • {user.coins} Coins
-              </Text>
-            </View>
+        {leaderboard.map((user, index) => (
+          <View key={user.userId} style={styles.rankingCard}>
+            <LinearGradient
+              colors={['#2A2A2A', '#1A1A1A']}
+              style={styles.gradientRankCard}>
+              <View style={styles.rankPosition}>
+                <Text style={styles.rankNumber}>#{index + 1}</Text>
+                {index < 3 && (
+                  <Ionicons
+                    name="trophy"
+                    size={20}
+                    color={
+                      index === 0
+                        ? '#FFD700'
+                        : index === 1
+                        ? '#C0C0C0'
+                        : '#CD7F32'
+                    }
+                  />
+                )}
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.userStats}>
+                  {user.shares} Shares • {user.coins.toFixed(2)} Coins
+                </Text>
+              </View>
+            </LinearGradient>
           </View>
         ))}
       </View>
@@ -88,12 +111,12 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
     color: '#999',
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 4,
   },
   rewardsCard: {
@@ -102,16 +125,23 @@ const styles = StyleSheet.create({
   gradientCard: {
     borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: '#FFD700', // Thin yellow border
-    shadowColor: '#FFD700', // Soft glow effect
-    shadowOpacity: 0.4,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  gradientRankCard: {
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   rewardsTitle: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
@@ -125,31 +155,29 @@ const styles = StyleSheet.create({
   },
   rewardValue: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginTop: 8,
   },
   rewardLabel: {
     color: '#999',
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 4,
   },
   rankingsSection: {
     padding: 20,
   },
   rankingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FFD700', // Yellow border
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFD700',
     shadowColor: '#FFD700',
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    shadowRadius: 10,
+    elevation: 10,
+    overflow: 'hidden',
   },
   rankPosition: {
     flexDirection: 'row',
@@ -158,7 +186,7 @@ const styles = StyleSheet.create({
   },
   rankNumber: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginRight: 8,
   },
@@ -167,7 +195,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   userStats: {
@@ -176,5 +204,3 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
-
-// export default styles;
