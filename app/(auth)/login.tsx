@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import { auth } from '../services/auth';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -20,6 +21,22 @@ export default function LoginScreen() {
     } else {
       Alert.alert('Error', result.message || 'Login failed');
     }
+  };
+
+  const handleGoogleLogin = async () => {
+    // try {
+    //   // Implement your Google login logic here
+    //   const result = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    //   if (result.user) {
+    //     // Handle successful login
+    //     console.log('User logged in:', result.user);
+    //   }
+    // } catch (error) {
+    //   console.error('Google login error:', error);
+    //   Alert.alert('Error', 'Failed to login with Google');
+    // }
+
+    console.log("Firebase Google login not implemented yet");
   };
 
   return (
@@ -52,6 +69,11 @@ export default function LoginScreen() {
 
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Login</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
+          <Ionicons name="logo-google" size={20} color="#FFF" style={styles.googleIcon} />
+          <Text style={styles.googleButtonText}>Login with Google</Text>
         </TouchableOpacity>
 
         <Link href="/(auth)/signup" asChild>
@@ -126,5 +148,23 @@ const styles = StyleSheet.create({
   signupTextBold: {
     color: '#FFD700',
     fontWeight: 'bold',
+  },
+  googleButton: {
+    backgroundColor: '#4285F4', // Google blue color
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row', // Align icon and text horizontally
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  googleButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8, // Space between icon and text
+  },
+  googleIcon: {
+    // Optional: Add any additional styling for the icon here
   },
 }); 
