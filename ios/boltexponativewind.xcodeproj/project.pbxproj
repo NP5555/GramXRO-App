@@ -303,7 +303,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.boltexponativewind";
-				PRODUCT_NAME = "boltexponativewind";
+				PRODUCT_NAME = "GRAMXRO";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -330,7 +330,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.boltexponativewind";
-				PRODUCT_NAME = "boltexponativewind";
+				PRODUCT_NAME = "GRAMXRO";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 				TARGETED_DEVICE_FAMILY = "1,2";

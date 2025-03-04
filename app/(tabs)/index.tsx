@@ -54,7 +54,7 @@ export default function HomeScreen() {
   }, []);
 
   const handleCopyCode = async () => {
-    const referralCode = '3UEQQS1';
+    const referralCode = '3geqq1';
     await Clipboard.setStringAsync(referralCode);
     Alert.alert('Success', 'Referral code copied to clipboard!');
   };
@@ -151,7 +151,9 @@ export default function HomeScreen() {
               <View style={styles.progressContainer}>
                 <Text style={styles.statLabel}>Progress</Text>
                 <Text style={styles.statValue}>
-                  {((currentBatch?.tokensSold / currentBatch?.totalTokens) * 100).toFixed(1)}%
+                  {currentBatch && currentBatch.totalTokens 
+                    ? ((currentBatch.tokensSold / currentBatch.totalTokens) * 100).toFixed(1) 
+                    : '0.0'}%
                 </Text>
               </View>
             </View>
