@@ -16,8 +16,10 @@ export default function LoginScreen() {
     }
 
     const result = await auth.login(email, password);
+    console.log('Login result:', result); // Debug log
     if (result.success) {
-      router.replace('/(tabs)');
+      window.dispatchEvent(new Event('userChange')); // Dispatch the event
+      router.replace('/(tabs)'); // Redirect to main app
     } else {
       Alert.alert('Error', result.message || 'Login failed');
     }

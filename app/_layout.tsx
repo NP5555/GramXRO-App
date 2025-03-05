@@ -19,6 +19,7 @@ export default function RootLayout() {
   useEffect(() => {
     // Check authentication status
     auth.getCurrentUser().then(user => {
+      console.log('Current user:', user); // Debug log
       setUser(user);
       setLoading(false);
     });
@@ -27,16 +28,35 @@ export default function RootLayout() {
   useEffect(() => {
     if (loading) return;
 
+    console.log('User state:', user); // Debug log
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      // Redirect to login if not authenticated
+      console.log('Redirecting to login'); // Debug log
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
-      // Redirect to home if authenticated
+      console.log('Redirecting to tabs'); // Debug log
       router.replace('/(tabs)');
     }
   }, [user, loading, segments]);
+
+  useEffect(() => {
+    const handleUserChange = () => {
+      auth.getCurrentUser().then(user => {
+        setUser(user);
+      });
+    };
+
+    window.addEventListener('userChange', handleUserChange);
+    return () => {
+      window.removeEventListener('userChange', handleUserChange);
+    };
+  }, []);
+
+  const refreshUserState = async () => {
+    const user = await auth.getCurrentUser();
+    setUser(user);
+  };
 
   if (loading) {
     return null; // Or a loading screen
@@ -44,7 +64,7 @@ export default function RootLayout() {
 
   return (
     <Stack>
-      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)/login" options={{ headerShown: false, refreshUserState }} />
       <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
