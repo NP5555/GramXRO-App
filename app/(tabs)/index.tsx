@@ -38,7 +38,7 @@ export default function HomeScreen() {
       try {
         // Using ID 1 for demo purposes - in real app, this would come from auth
         const [user, batch] = await Promise.all([
-          api.getCurrentUser(1),
+          api.getCurrentUser(),
           api.getCurrentBatch()
         ]);
         setCurrentUser(user);
@@ -70,16 +70,12 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.username}>{currentUser?.name}</Text>
         </View>
-        {/* <TouchableOpacity style={styles.profileButton}>
-          <Ionicons name="person-circle" size={52} color="#FFD700" />
-        </TouchableOpacity> */}
-
-<TouchableOpacity style={styles.profileButton}>
-  <Image 
-    source={require('../../assets/images/man.png')} 
-    style={{ width: 52, height: 52, borderRadius: 26 }} 
-  />
-</TouchableOpacity>
+        <TouchableOpacity style={styles.profileButton}>
+          <Image 
+            source={{ uri: currentUser?.profileImage }} 
+            style={{ width: 52, height: 52, borderRadius: 26 }} 
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.statsContainer}>
@@ -314,6 +310,3 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 });
-
-// export default styles;
-

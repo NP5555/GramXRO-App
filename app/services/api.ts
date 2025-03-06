@@ -1,15 +1,17 @@
 const API_BASE_URL = 'http://localhost:3001';
 
 export interface User {
-  id: number;
+  _id: string;
   name: string;
   referralCode?: string;
   tokens: number;
   shares: number;
   profileImage?: string;
+  numericId?: number; // Optional: if you want to keep numeric IDs
 }
 
 export interface Batch {
+  _id: string;
   batchNumber: number;
   currentPrice: number;
   nextPrice: number;
@@ -18,15 +20,35 @@ export interface Batch {
 }
 
 export interface LeaderboardEntry {
-  userId: number;
-  name: string;
+  _id: string;
+  position: number;
+  userId: {
+    _id: string;
+    name: string;
+  };
   coins: number;
   shares: number;
+  __v?: number;
+}
+
+export interface Task {
+  task: string;
+  reward: number;
+  _id: string;
 }
 
 export const api = {
-  async getCurrentUser(userId: number): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/user/${userId}`);
+  // Use a real MongoDB ID from your database
+  async getDefaultUser(): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/admin/users`);
+    if (!response.ok) throw new Error('Failed to fetch default user');
+    const users = await response.json();
+    if (!users || users.length === 0) throw new Error('No users found');
+    return users[0];
+  },
+
+  async getCurrentUser(userId: string): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/user/default`);
     if (!response.ok) throw new Error('Failed to fetch user');
     return response.json();
   },
@@ -37,13 +59,27 @@ export const api = {
     return response.json();
   },
 
+  async getTasks(): Promise<Task[]> {
+    const response = await fetch(`${API_BASE_URL}/api/tasks`);
+    if (!response.ok) throw new Error('Failed to fetch tasks');
+    return response.json();
+  },
+  
+  // async getLeaderboard(): Promise<LeaderboardEntry[]> {
+  //   const response = await fetch(`${API_BASE_URL}/leaderboard`);
+  //   if (!response.ok) throw new Error('Failed to fetch leaderboard');
+  //   return response.json();
+  // },
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     const response = await fetch(`${API_BASE_URL}/leaderboard`);
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
-    return response.json();
+    const data = await response.json();
+    console.log('Received leaderboard data:', data); // Add log to verify data
+    return data;
   },
 
-  async purchaseTokens(userId: number, amount: number): Promise<{ success: boolean; newBalance: number }> {
+
+  async purchaseTokens(userId: string, amount: number): Promise<{ success: boolean; newBalance: number }> {
     const response = await fetch(`${API_BASE_URL}/tokens/purchase`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,7 +89,11 @@ export const api = {
     return response.json();
   },
 
-  async completeTask(userId: number, task: string): Promise<{ success: boolean; newBalance: number }> {
+  async completeTask(userId: string, task: string): Promise<{ success: boolean; newBalance: number }> {
+    if (!userId || userId === 'default-user') {
+      throw new Error('Valid user ID is required');
+    }
+    
     const response = await fetch(`${API_BASE_URL}/tasks/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,4 +102,17 @@ export const api = {
     if (!response.ok) throw new Error('Failed to complete task');
     return response.json();
   },
-}; 
+};
+
+// Example usage in your frontend:
+export async function loadInitialData() {
+  try {
+    const defaultUser = await api.getDefaultUser();
+    const batch = await api.getCurrentBatch();
+    const leaderboard = await api.getLeaderboard();
+    return { defaultUser, batch, leaderboard };
+  } catch (error) {
+    console.error('Error loading initial data:', error);
+    throw error;
+  }
+}

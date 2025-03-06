@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,32 +6,79 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 import { api } from '../services/api';
 
-const TASKS = [
-  { task: "Join Our Telegram Community", reward: 0.25 },
-  { task: "Follow on Instagram", reward: 0.25 },
-  { task: "Subscribe on YouTube", reward: 0.25 },
-  { task: "Follow on Twitter", reward: 0.25 },
-];
+// Add interface for Task type
+interface Task {
+  _id: string;
+  task: string;
+  reward: number;
+  __v?: number;
+}
 
 export default function AirdropScreen() {
   const insets = useSafeAreaInsets();
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string>('');
 
-  const handleTaskComplete = async (task: string) => {
+  // Fetch user and tasks
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get default user first
+        const user = await api.getDefaultUser();
+        setUserId(user._id);
+
+        // Then fetch tasks
+        const tasksData = await api.getTasks();
+        setTasks(tasksData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        Alert.alert('Error', 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleTaskComplete = async (taskId: string) => {
     try {
-      // Using ID 1 for demo purposes - in real app, this would come from auth
-      const result = await api.completeTask(1, task);
+      if (!userId) {
+        throw new Error('No user ID available');
+      }
+
+      const taskToComplete = tasks.find(t => t._id === taskId);
+      if (!taskToComplete) {
+        throw new Error('Task not found');
+      }
+
+      const result = await api.completeTask(userId, taskToComplete.task);
+      
       if (result.success) {
-        setCompletedTasks(prev => new Set([...prev, task]));
-        Alert.alert('Success', `You earned ${0.25} tokens!`);
+        setCompletedTasks(prev => new Set([...prev, taskId]));
+        Alert.alert('Success', `Task completed successfully!`);
       }
     } catch (error) {
+      console.error('Error completing task:', error);
       Alert.alert('Error', 'Failed to complete task');
     }
   };
 
-  const totalEarned = TASKS.filter(task => completedTasks.has(task.task)).reduce((sum, task) => sum + task.reward, 0);
-  const totalAvailable = TASKS.reduce((sum, task) => sum + task.reward, 0);
+  const totalEarned = tasks
+    .filter(task => completedTasks.has(task._id))
+    .reduce((sum, task) => sum + task.reward, 0);
+
+  const totalAvailable = tasks.reduce((sum, task) => sum + task.reward, 0);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading tasks...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
@@ -66,21 +113,21 @@ export default function AirdropScreen() {
 
       <View style={styles.tasksSection}>
         <Text style={styles.sectionTitle}>Complete Tasks to Earn</Text>
-        {TASKS.map((task) => (
+        {tasks.map((task) => (
           <TouchableOpacity
-            key={task.task}
+            key={task._id}
             style={[
               styles.taskItem,
-              completedTasks.has(task.task) && styles.completedTask
+              completedTasks.has(task._id) && styles.completedTask
             ]}
-            onPress={() => handleTaskComplete(task.task)}
-            disabled={completedTasks.has(task.task)}
+            onPress={() => handleTaskComplete(task._id)}
+            disabled={completedTasks.has(task._id)}
           >
             <View>
               <Text style={styles.taskText}>{task.task}</Text>
               <Text style={styles.rewardText}>Reward: {task.reward} tokens</Text>
             </View>
-            {completedTasks.has(task.task) && (
+            {completedTasks.has(task._id) && (
               <Text style={styles.completedText}>✓ Completed</Text>
             )}
           </TouchableOpacity>
@@ -126,7 +173,6 @@ export default function AirdropScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    // padding:10,
     flex: 1,
     backgroundColor: '#121212',
   },
@@ -157,7 +203,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.7)', // Gold border
+    borderColor: 'rgba(255, 215, 0, 0.7)',
     shadowColor: '#FFD700',
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
@@ -173,7 +219,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: '100%',
-    backgroundColor: '#FFD700', // Gold thin line
+    backgroundColor: '#FFD700',
     marginHorizontal: 20,
   },
   balanceLabel: {
@@ -232,7 +278,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.7)', // Shiny gold border
+    borderColor: 'rgba(255, 215, 0, 0.7)',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#FFD700',
     shadowOpacity: 0.3,
@@ -280,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.7)', // Gold border
+    borderColor: 'rgba(255, 215, 0, 0.7)',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#FFD700',
     shadowOpacity: 0.3,

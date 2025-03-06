@@ -1,25 +1,34 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-
-const presaleData = {
-  currentBatch: 9,
-  totalBatches: 10,
-  currentPrice: 1.38,
-  nextPrice: 1.45,
-  soldTokens: 75779,
-  totalTokens: 100000,
-  progress: 75.779,
-};
+import React, { useEffect, useState } from 'react';
+import { api, Batch } from '../services/api'; // Import Batch interface and api
 
 export default function PresaleScreen() {
   const insets = useSafeAreaInsets();
   const animatedValue = new Animated.Value(1);
+  const [batchData, setBatchData] = useState<Batch | null>(null); // State for batch data
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
 
-  React.useEffect(() => {
-    startButtonAnimation();
+  // Fetch batch data on mount
+  useEffect(() => {
+    const fetchBatchData = async () => {
+      try {
+        const data = await api.getCurrentBatch();
+        console.log('Fetched batch data:', data); // Debug log
+        setBatchData(data);
+      } catch (error) {
+        console.error('Error fetching batch data:', error);
+        setError('Failed to load batch data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBatchData();
+    startButtonAnimation(); // Start animation
   }, []);
 
   const startButtonAnimation = () => {
@@ -40,6 +49,22 @@ export default function PresaleScreen() {
       ])
     ).start();
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, padding: 20 }]}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
@@ -62,28 +87,33 @@ export default function PresaleScreen() {
             colors={['#2A2A2A', '#1A1A1A']}
             style={styles.gradientContent}>
             <Text style={styles.batchTitle}>
-              Batch #{presaleData.currentBatch}/{presaleData.totalBatches}
+              Batch #{batchData?.batchNumber}
             </Text>
             <View style={styles.priceRow}>
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Current Price</Text>
-                <Text style={styles.priceValue}>${presaleData.currentPrice}</Text>
+                <Text style={styles.priceValue}>${batchData?.currentPrice || 0}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Next Batch Price</Text>
-                <Text style={styles.priceValue}>${presaleData.nextPrice}</Text>
+                <Text style={styles.priceValue}>${batchData?.nextPrice || 0}</Text>
               </View>
             </View>
             <View style={styles.progressSection}>
               <View style={styles.progressBar}>
                 <LinearGradient
                   colors={['#FFD700', '#FFA500']}
-                  style={[styles.progress, { width: `${presaleData.progress}%` }]}
+                  style={[
+                    styles.progress,
+                    {
+                      width: `${((batchData?.tokensSold || 0) / (batchData?.totalTokens || 1)) * 100}%`,
+                    }
+                  ]}
                 />
               </View>
               <Text style={styles.progressText}>
-                {presaleData.soldTokens.toLocaleString()} / {presaleData.totalTokens.toLocaleString()} tokens sold
+                {(batchData?.tokensSold || 0).toLocaleString()} / {(batchData?.totalTokens || 0).toLocaleString()} tokens sold
               </Text>
             </View>
           </LinearGradient>
@@ -99,7 +129,7 @@ export default function PresaleScreen() {
             <Text style={styles.input}>1000</Text>
           </View>
           <Text style={styles.tokenEstimate}>
-            ≈ {(1000 / presaleData.currentPrice).toFixed(2)} tokens
+            ≈ {(1000 / (batchData?.currentPrice || 1)).toFixed(2)} tokens
           </Text>
         </View>
         <TouchableOpacity>
@@ -316,5 +346,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 12,
     flex: 1,
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

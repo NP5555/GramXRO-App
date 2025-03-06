@@ -14,6 +14,7 @@ export default function LeaderboardScreen() {
     const fetchLeaderboard = async () => {
       try {
         const data = await api.getLeaderboard();
+        console.log('Fetched leaderboard data:', data); // Debug log
         setLeaderboard(data);
       } catch (error) {
         console.error('Error fetching leaderboard:', error);
@@ -66,36 +67,40 @@ export default function LeaderboardScreen() {
       </View>
 
       <View style={styles.rankingsSection}>
-        {leaderboard.map((user, index) => (
-          <View key={user.userId} style={styles.rankingCard}>
-            <LinearGradient
-              colors={['#2A2A2A', '#1A1A1A']}
-              style={styles.gradientRankCard}>
-              <View style={styles.rankPosition}>
-                <Text style={styles.rankNumber}>#{index + 1}</Text>
-                {index < 3 && (
-                  <Ionicons
-                    name="trophy"
-                    size={20}
-                    color={
-                      index === 0
-                        ? '#FFD700'
-                        : index === 1
-                        ? '#C0C0C0'
-                        : '#CD7F32'
-                    }
-                  />
-                )}
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <Text style={styles.userStats}>
-                  {user.shares} Shares • {user.coins.toFixed(2)} Coins
-                </Text>
-              </View>
-            </LinearGradient>
-          </View>
-        ))}
+        {leaderboard.length === 0 ? (
+          <Text style={styles.noDataText}>No leaderboard data available.</Text>
+        ) : (
+          leaderboard.map((user, index) => (
+            <View key={user._id} style={styles.rankingCard}>
+              <LinearGradient
+                colors={['#2A2A2A', '#1A1A1A']}
+                style={styles.gradientRankCard}>
+                <View style={styles.rankPosition}>
+                  <Text style={styles.rankNumber}>#{index + 1}</Text>
+                  {index < 3 && (
+                    <Ionicons
+                      name="trophy"
+                      size={20}
+                      color={
+                        index === 0
+                          ? '#FFD700'
+                          : index === 1
+                          ? '#C0C0C0'
+                          : '#CD7F32'
+                      }
+                    />
+                  )}
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user.userId.name || 'Unknown'}</Text>
+                  <Text style={styles.userStats}>
+                    {(user.shares || 0)} Shares • {(user.coins || 0).toFixed(2)} Coins
+                  </Text>
+                </View>
+              </LinearGradient>
+            </View>
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -202,5 +207,10 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 14,
     marginTop: 4,
+  },
+  noDataText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
