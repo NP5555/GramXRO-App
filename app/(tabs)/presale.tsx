@@ -1,25 +1,27 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { api, Batch } from '../services/api'; // Import Batch interface and api
+import { apiService, Batch } from '../services/api';
 
 export default function PresaleScreen() {
   const insets = useSafeAreaInsets();
   const animatedValue = new Animated.Value(1);
-  const [batchData, setBatchData] = useState<Batch | null>(null); // State for batch data
-  const [loading, setLoading] = useState(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+  const [batchData, setBatchData] = useState<Batch | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [amount, setAmount] = useState('');
+  const [processing, setProcessing] = useState(false);
 
   // Fetch batch data on mount
   useEffect(() => {
     const fetchBatchData = async () => {
       try {
-        const data = await api.getCurrentBatch();
-        console.log('Fetched batch data:', data); // Debug log
+        const data = await apiService.getCurrentBatch();
+        console.log('Fetched batch data:', data);
         setBatchData(data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching batch data:', error);
         setError('Failed to load batch data. Please try again later.');
       } finally {
@@ -28,7 +30,7 @@ export default function PresaleScreen() {
     };
 
     fetchBatchData();
-    startButtonAnimation(); // Start animation
+    startButtonAnimation();
   }, []);
 
   const startButtonAnimation = () => {
@@ -50,6 +52,37 @@ export default function PresaleScreen() {
     ).start();
   };
 
+  const handlePurchase = async () => {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    const purchaseAmount = Number(amount);
+    if (purchaseAmount < 100) {
+      Alert.alert('Error', 'Minimum purchase amount is 100');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const result = await apiService.purchaseTokens(purchaseAmount);
+      if (result.success) {
+        Alert.alert('Success', `Successfully purchased tokens! New balance: ${result.data?.newBalance}`);
+        // Refresh batch data
+        const newBatchData = await apiService.getCurrentBatch();
+        setBatchData(newBatchData);
+        setAmount('');
+      } else {
+        Alert.alert('Error', result.message || 'Failed to purchase tokens');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to purchase tokens');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -66,6 +99,8 @@ export default function PresaleScreen() {
     );
   }
 
+  const estimatedTokens = amount ? Number(amount) / (batchData?.currentPrice || 1) : 0;
+
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -81,7 +116,7 @@ export default function PresaleScreen() {
       <View style={styles.batchCard}>
         <Animated.View style={[
           styles.gradientCard,
-          { transform: [{ translateY: animatedValue }] }
+          { transform: [{ scale: animatedValue }] }
         ]}>
           <LinearGradient
             colors={['#2A2A2A', '#1A1A1A']}
@@ -92,12 +127,12 @@ export default function PresaleScreen() {
             <View style={styles.priceRow}>
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Current Price</Text>
-                <Text style={styles.priceValue}>${batchData?.currentPrice || 0}</Text>
+                <Text style={styles.priceValue}>${batchData?.currentPrice.toFixed(2)}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.priceInfo}>
                 <Text style={styles.priceLabel}>Next Batch Price</Text>
-                <Text style={styles.priceValue}>${batchData?.nextPrice || 0}</Text>
+                <Text style={styles.priceValue}>${batchData?.nextPrice.toFixed(2)}</Text>
               </View>
             </View>
             <View style={styles.progressSection}>
@@ -126,19 +161,37 @@ export default function PresaleScreen() {
           <Text style={styles.inputLabel}>Amount (USD)</Text>
           <View style={styles.inputContainer}>
             <Text style={styles.currencySymbol}>$</Text>
-            <Text style={styles.input}>1000</Text>
+            <TextInput
+              style={styles.input}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+              placeholder="Enter amount"
+              placeholderTextColor="#666"
+              editable={!processing}
+            />
           </View>
           <Text style={styles.tokenEstimate}>
-            ≈ {(1000 / (batchData?.currentPrice || 1)).toFixed(2)} tokens
+            ≈ {estimatedTokens.toFixed(2)} tokens
           </Text>
         </View>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={handlePurchase}
+          disabled={processing || !amount}
+        >
           <Animated.View style={[
             styles.buyButton,
+            (processing || !amount) && styles.disabledButton,
             { transform: [{ scale: animatedValue }] }
           ]}>
-            <Text style={styles.buyButtonText}>Buy Tokens</Text>
-            <Ionicons name="arrow-forward" size={20} color="#000" />
+            {processing ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <>
+                <Text style={styles.buyButtonText}>Buy Tokens</Text>
+                <Ionicons name="arrow-forward" size={20} color="#000" />
+              </>
+            )}
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -183,12 +236,12 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
     color: '#999',
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 4,
   },
   historyButton: {
@@ -199,28 +252,26 @@ const styles = StyleSheet.create({
   },
   gradientCard: {
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#FFD700',
     shadowColor: '#FFD700',
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   gradientContent: {
-    borderRadius: 16,
     padding: 20,
   },
   batchTitle: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 16,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 20,
   },
   priceInfo: {
@@ -229,8 +280,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     width: 1,
-    height: 40,
-    backgroundColor: '#333',
+    height: '100%',
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
     marginHorizontal: 20,
   },
   priceLabel: {
@@ -244,13 +295,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   progressSection: {
-    marginTop: 8,
+    marginTop: 16,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 8,
   },
   progress: {
     height: '100%',
@@ -260,28 +312,21 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 8,
   },
   purchaseSection: {
     padding: 20,
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
   },
   inputCard: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    marginBottom: 20,
   },
   inputLabel: {
     color: '#999',
@@ -291,36 +336,45 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    padding: 12,
   },
   currencySymbol: {
     color: '#FFD700',
     fontSize: 24,
     fontWeight: 'bold',
-    marginRight: 4,
+    marginRight: 8,
   },
   input: {
+    flex: 1,
     color: '#FFF',
     fontSize: 24,
     fontWeight: 'bold',
+    padding: 0,
   },
   tokenEstimate: {
     color: '#999',
     fontSize: 14,
     marginTop: 8,
+    textAlign: 'right',
   },
   buyButton: {
     backgroundColor: '#FFD700',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   buyButtonText: {
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
-    marginRight: 8,
   },
   infoSection: {
     padding: 20,
@@ -348,7 +402,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorText: {
-    color: '#FF4444',
+    color: '#FF6B6B',
     fontSize: 16,
     textAlign: 'center',
   },

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, router } from 'expo-router';
+import { Link, router, useRouter } from 'expo-router';
 import { auth } from '../services/auth';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -15,30 +16,62 @@ export default function LoginScreen() {
       return;
     }
 
-    const result = await auth.login(email, password);
-    console.log('Login result:', result); // Debug log
-    if (result.success) {
-      window.dispatchEvent(new Event('userChange')); // Dispatch the event
-      router.replace('/(tabs)'); // Redirect to main app
-    } else {
-      Alert.alert('Error', result.message || 'Login failed');
+    setIsLoading(true);
+    try {
+      const result = await auth.login(email, password);
+      console.log(result);
+      if (result.success && result.token) {
+        // Token is automatically saved by the auth service
+        window.dispatchEvent(new Event('userChange')); // Update app state
+        // Delay navigation until the component is fully mounted
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 0);
+      } else {
+        Alert.alert('Error', result.message || 'Login failed');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    // try {
-    //   // Implement your Google login logic here
-    //   const result = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-    //   if (result.user) {
-    //     // Handle successful login
-    //     console.log('User logged in:', result.user);
-    //   }
-    // } catch (error) {
-    //   console.error('Google login error:', error);
-    //   Alert.alert('Error', 'Failed to login with Google');
-    // }
+  // const handleLogin = async (
+  //   email: string,
+  //   password: string,
+  //   setIsLoading: (loading: boolean) => void,
+  //   router: ReturnType<typeof useRouter>
+  // ) => {
+  //   if (!email || !password) {
+  //     Alert.alert('Error', 'Please fill in all fields');
+  //     return;
+  //   }
+  
+  //   setIsLoading(true);
+  //   try {
+  //     console.log('Attempting login with:', { email, password }); // Debug input
+  //     const { token, user } = await auth.login(email, password);
+  
+  //     // Assuming apiService.login returns { token, user }
+  //     console.log('Login successful:', { token, user });
+  
+  //     // Store token (assuming auth service handles this internally)
+  //     // If not, you'd need: auth.setToken(token);
+  //     window.dispatchEvent(new Event('userChange')); // Update app state
+  //     router.replace('/(tabs)');
+  //   } catch (error: any) {
+  //     const errorMessage =
+  //       error.response?.data?.message || error.message || 'An unexpected error occurred';
+  //     console.error('Login failed:', errorMessage);
+  //     Alert.alert('Error', errorMessage);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
-    console.log("Firebase Google login not implemented yet");
+  const handleGoogleLogin = async () => {
+    Alert.alert('Info', 'Google login is not implemented yet');
   };
 
   return (
@@ -58,6 +91,7 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          editable={!isLoading}
         />
 
         <TextInput
@@ -67,19 +101,30 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!isLoading}
         />
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Login</Text>
+        <TouchableOpacity 
+          style={[styles.loginButton, isLoading && styles.disabledButton]} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          <Text style={styles.loginButtonText}>
+            {isLoading ? 'Logging in...' : 'Login'}
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
+        <TouchableOpacity 
+          style={[styles.googleButton, isLoading && styles.disabledButton]} 
+          onPress={handleGoogleLogin}
+          disabled={isLoading}
+        >
           <Ionicons name="logo-google" size={20} color="#FFF" style={styles.googleIcon} />
           <Text style={styles.googleButtonText}>Login with Google</Text>
         </TouchableOpacity>
 
         <Link href="/(auth)/signup" asChild>
-          <TouchableOpacity style={styles.signupLink}>
+          <TouchableOpacity style={styles.signupLink} disabled={isLoading}>
             <Text style={styles.signupText}>
               Don't have an account? <Text style={styles.signupTextBold}>Sign Up</Text>
             </Text>
@@ -134,6 +179,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   loginButtonText: {
     color: '#000',
     fontSize: 16,
@@ -152,11 +200,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   googleButton: {
-    backgroundColor: '#4285F4', // Google blue color
+    backgroundColor: '#4285F4',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    flexDirection: 'row', // Align icon and text horizontally
+    flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 20,
   },
@@ -164,7 +212,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 8, // Space between icon and text
+    marginLeft: 8,
   },
   googleIcon: {
     // Optional: Add any additional styling for the icon here

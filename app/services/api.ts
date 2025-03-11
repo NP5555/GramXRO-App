@@ -1,13 +1,52 @@
+import axios from 'axios';
+import { auth } from './auth';
+
 const API_BASE_URL = 'http://localhost:3001';
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for authentication
+api.interceptors.request.use(
+  (config) => {
+    const token = auth.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expired or invalid
+      auth.logout(); // This will trigger the authError event
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface User {
   _id: string;
   name: string;
+  email: string;
   referralCode?: string;
   tokens: number;
   shares: number;
   profileImage?: string;
-  numericId?: number; // Optional: if you want to keep numeric IDs
+  numericId?: number;
 }
 
 export interface Batch {
@@ -20,99 +59,106 @@ export interface Batch {
 }
 
 export interface LeaderboardEntry {
-  _id: string;
   position: number;
-  userId: {
-    _id: string;
-    name: string;
-  };
+  name: string;
   coins: number;
   shares: number;
-  __v?: number;
+  userId: string | null;
 }
 
 export interface Task {
+  _id: string;
   task: string;
   reward: number;
-  _id: string;
 }
 
-export const api = {
-  // Use a real MongoDB ID from your database
-  async getDefaultUser(): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/admin/users`);
-    if (!response.ok) throw new Error('Failed to fetch default user');
-    const users = await response.json();
-    if (!users || users.length === 0) throw new Error('No users found');
-    return users[0];
-  },
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
 
-  async getCurrentUser(userId: string): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/user/default`);
-    if (!response.ok) throw new Error('Failed to fetch user');
-    return response.json();
+export const apiService = {
+  async getCurrentUser(): Promise<User> {
+    try {
+      const response = await api.get('/auth/profile');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      throw error;
+    }
   },
 
   async getCurrentBatch(): Promise<Batch> {
-    const response = await fetch(`${API_BASE_URL}/batch/current`);
-    if (!response.ok) throw new Error('Failed to fetch batch');
-    return response.json();
+    try {
+      const response = await api.get('/batch/current');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching current batch:', error);
+      throw error;
+    }
   },
 
   async getTasks(): Promise<Task[]> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks`);
-    if (!response.ok) throw new Error('Failed to fetch tasks');
-    return response.json();
-  },
-  
-  // async getLeaderboard(): Promise<LeaderboardEntry[]> {
-  //   const response = await fetch(`${API_BASE_URL}/leaderboard`);
-  //   if (!response.ok) throw new Error('Failed to fetch leaderboard');
-  //   return response.json();
-  // },
-  async getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const response = await fetch(`${API_BASE_URL}/leaderboard`);
-    if (!response.ok) throw new Error('Failed to fetch leaderboard');
-    const data = await response.json();
-    console.log('Received leaderboard data:', data); // Add log to verify data
-    return data;
-  },
-
-
-  async purchaseTokens(userId: string, amount: number): Promise<{ success: boolean; newBalance: number }> {
-    const response = await fetch(`${API_BASE_URL}/tokens/purchase`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, amount }),
-    });
-    if (!response.ok) throw new Error('Failed to purchase tokens');
-    return response.json();
-  },
-
-  async completeTask(userId: string, task: string): Promise<{ success: boolean; newBalance: number }> {
-    if (!userId || userId === 'default-user') {
-      throw new Error('Valid user ID is required');
+    try {
+      const response = await api.get('/tasks');
+      console.log('Tasks response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      throw error;
     }
-    
-    const response = await fetch(`${API_BASE_URL}/tasks/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, task }),
-    });
-    if (!response.ok) throw new Error('Failed to complete task');
-    return response.json();
+  },
+
+  async getLeaderboard(): Promise<LeaderboardEntry[]> {
+    try {
+      const response = await api.get('/leaderboard');
+      console.log('Leaderboard response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      throw error;
+    }
+  },
+
+  async purchaseTokens(amount: number): Promise<ApiResponse<{ newBalance: number }>> {
+    try {
+      if (amount < 100) {
+        throw new Error('Minimum purchase amount is 100');
+      }
+      const response = await api.post('/tokens/purchase', { amount });
+      console.log('Purchase response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error purchasing tokens:', error);
+      throw error;
+    }
+  },
+
+  async completeTask(task: string): Promise<ApiResponse<{ newBalance: number }>> {
+    try {
+      const response = await api.post('/tasks/complete', { task });
+      console.log('Task completion response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error completing task:', error);
+      throw error;
+    }
   },
 };
 
-// Example usage in your frontend:
 export async function loadInitialData() {
   try {
-    const defaultUser = await api.getDefaultUser();
-    const batch = await api.getCurrentBatch();
-    const leaderboard = await api.getLeaderboard();
-    return { defaultUser, batch, leaderboard };
+    const [user, batch, leaderboard] = await Promise.all([
+      apiService.getCurrentUser(),
+      apiService.getCurrentBatch(),
+      apiService.getLeaderboard(),
+    ]);
+    return { user, batch, leaderboard };
   } catch (error) {
     console.error('Error loading initial data:', error);
     throw error;
   }
 }
+
+export default apiService;

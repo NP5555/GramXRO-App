@@ -1,68 +1,61 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
-import { api } from '../services/api';
-
-// Add interface for Task type
-interface Task {
-  _id: string;
-  task: string;
-  reward: number;
-  __v?: number;
-}
+import { apiService, Task } from '../services/api';
 
 export default function AirdropScreen() {
   const insets = useSafeAreaInsets();
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [processingTask, setProcessingTask] = useState<string | null>(null);
 
-  // Fetch user and tasks
+  // Fetch tasks
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchTasks = async () => {
       try {
-        // Get default user first
-        const user = await api.getDefaultUser();
-        setUserId(user._id);
-
-        // Then fetch tasks
-        const tasksData = await api.getTasks();
+        const tasksData = await apiService.getTasks();
+        console.log('Fetched tasks:', tasksData);
         setTasks(tasksData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        Alert.alert('Error', 'Failed to load data');
+      } catch (error: any) {
+        console.error('Error fetching tasks:', error);
+        setError(error.message || 'Failed to load tasks');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchTasks();
   }, []);
 
   const handleTaskComplete = async (taskId: string) => {
+    if (completedTasks.has(taskId) || processingTask) {
+      return;
+    }
+
+    const taskToComplete = tasks.find(t => t._id === taskId);
+    if (!taskToComplete) {
+      Alert.alert('Error', 'Task not found');
+      return;
+    }
+
+    setProcessingTask(taskId);
     try {
-      if (!userId) {
-        throw new Error('No user ID available');
-      }
-
-      const taskToComplete = tasks.find(t => t._id === taskId);
-      if (!taskToComplete) {
-        throw new Error('Task not found');
-      }
-
-      const result = await api.completeTask(userId, taskToComplete.task);
-      
+      const result = await apiService.completeTask(taskToComplete.task);
       if (result.success) {
         setCompletedTasks(prev => new Set([...prev, taskId]));
-        Alert.alert('Success', `Task completed successfully!`);
+        Alert.alert('Success', `Task completed! You earned ${taskToComplete.reward} tokens.`);
+      } else {
+        Alert.alert('Error', result.message || 'Failed to complete task');
       }
-    } catch (error) {
-      console.error('Error completing task:', error);
-      Alert.alert('Error', 'Failed to complete task');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to complete task');
+    } finally {
+      setProcessingTask(null);
     }
   };
 
@@ -74,8 +67,16 @@ export default function AirdropScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading tasks...</Text>
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
@@ -84,54 +85,68 @@ export default function AirdropScreen() {
     <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Earn More Tokens</Text>
-          <Text style={styles.subtitle}>Complete tasks to earn rewards</Text>
+          <Text style={styles.title}>Airdrop Tasks</Text>
+          <Text style={styles.subtitle}>Complete tasks to earn tokens</Text>
         </View>
         <TouchableOpacity style={styles.referButton}>
           <Ionicons name="share-social" size={24} color="#FFD700" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.balanceCard}>
+      <View style={styles.statsCard}>
         <LinearGradient
           colors={['#2A2A2A', '#1A1A1A']}
-          style={styles.gradientCard}>
-          <View style={styles.balanceRow}>
-            <View>
-              <Text style={styles.balanceLabel}>Your Balance</Text>
-              <Text style={styles.balanceValue}>{totalEarned.toFixed(2)} Tokens</Text>
+          style={styles.gradientCard}
+        >
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Text style={styles.statLabel}>Total Earned</Text>
+              <Text style={styles.statValue}>{totalEarned.toLocaleString()}</Text>
             </View>
-            <View style={styles.divider} />
-            <View>
-              <Text style={styles.balanceLabel}>Available to Earn</Text>
-              <Text style={styles.balanceValue}>{(totalAvailable - totalEarned).toFixed(2)} Tokens</Text>
+            <View style={styles.stat}>
+              <Text style={styles.statLabel}>Available</Text>
+              <Text style={styles.statValue}>{totalAvailable.toLocaleString()}</Text>
             </View>
           </View>
-          <Text style={styles.listingPrice}>Listing Price: $1.10 per token</Text>
         </LinearGradient>
       </View>
 
-      <View style={styles.tasksSection}>
-        <Text style={styles.sectionTitle}>Complete Tasks to Earn</Text>
-        {tasks.map((task) => (
-          <TouchableOpacity
-            key={task._id}
-            style={[
-              styles.taskItem,
-              completedTasks.has(task._id) && styles.completedTask
-            ]}
-            onPress={() => handleTaskComplete(task._id)}
-            disabled={completedTasks.has(task._id)}
-          >
-            <View>
-              <Text style={styles.taskText}>{task.task}</Text>
-              <Text style={styles.rewardText}>Reward: {task.reward} tokens</Text>
+      <View style={styles.tasksList}>
+        {tasks.length === 0 ? (
+          <Text style={styles.noDataText}>No tasks available at the moment.</Text>
+        ) : (
+          tasks.map((task) => (
+            <View key={task._id} style={styles.taskCard}>
+              <LinearGradient
+                colors={['#2A2A2A', '#1A1A1A']}
+                style={styles.gradientTask}
+              >
+                <View style={styles.taskContent}>
+                  <View style={styles.taskInfo}>
+                    <Text style={styles.taskText}>{task.task}</Text>
+                    <Text style={styles.rewardText}>{task.reward.toLocaleString()} tokens</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.completeButton,
+                      (completedTasks.has(task._id) || processingTask === task._id) && styles.disabledButton
+                    ]}
+                    onPress={() => handleTaskComplete(task._id)}
+                    disabled={completedTasks.has(task._id) || processingTask === task._id}
+                  >
+                    {processingTask === task._id ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : completedTasks.has(task._id) ? (
+                      <Ionicons name="checkmark" size={24} color="#000" />
+                    ) : (
+                      <Text style={styles.completeButtonText}>Complete</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
             </View>
-            {completedTasks.has(task._id) && (
-              <Text style={styles.completedText}>✓ Completed</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+          ))
+        )}
       </View>
 
       <View style={styles.referralSection}>
@@ -176,6 +191,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -184,95 +204,119 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
     color: '#999',
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 4,
   },
   referButton: {
     padding: 8,
   },
-  balanceCard: {
+  statsCard: {
     padding: 20,
   },
   gradientCard: {
     borderRadius: 16,
     padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.7)',
+    borderWidth: 2,
+    borderColor: '#FFD700',
     shadowColor: '#FFD700',
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.6,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    backdropFilter: 'blur(10px)',
+    shadowRadius: 10,
+    elevation: 10,
   },
-  balanceRow: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+  },
+  stat: {
     alignItems: 'center',
-    marginBottom: 12,
   },
-  divider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#FFD700',
-    marginHorizontal: 20,
-  },
-  balanceLabel: {
+  statLabel: {
     color: '#999',
     fontSize: 14,
     marginBottom: 4,
   },
-  balanceValue: {
+  statValue: {
     color: '#FFF',
     fontSize: 24,
     fontWeight: 'bold',
   },
-  listingPrice: {
+  tasksList: {
+    padding: 20,
+  },
+  taskCard: {
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  gradientTask: {
+    padding: 16,
+  },
+  taskContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  taskInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  taskText: {
+    color: '#FFF',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  rewardText: {
+    color: '#FFD700',
+    fontSize: 14,
+  },
+  completeButton: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  completeButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  noDataText: {
     color: '#999',
-    fontSize: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 16,
     textAlign: 'center',
   },
-  tasksSection: {
+  referralSection: {
     padding: 20,
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
-  },
-  taskItem: {
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    marginBottom: 10,
-    borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  completedTask: {
-    backgroundColor: '#e8f5e9',
-  },
-  taskText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  rewardText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  completedText: {
-    color: '#4caf50',
-    fontWeight: 'bold',
-  },
-  referralSection: {
-    padding: 20,
   },
   referralCard: {
     borderRadius: 16,

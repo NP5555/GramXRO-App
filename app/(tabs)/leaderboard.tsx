@@ -3,33 +3,66 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { api, LeaderboardEntry } from '../services/api';
+import { LeaderboardEntry } from '../services/api';
+
+// Separate API function
+const fetchLeaderboard = async (): Promise<LeaderboardEntry[]> => {
+  try {
+    const response = await fetch('http://localhost:3001/api/leaderboard');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to fetch leaderboard');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    throw error;
+  }
+};
 
 export default function LeaderboardScreen() {
   const insets = useSafeAreaInsets();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLeaderboard = async () => {
+    const loadLeaderboard = async () => {
       try {
-        const data = await api.getLeaderboard();
-        console.log('Fetched leaderboard data:', data); // Debug log
+        setLoading(true);
+        setError(null);
+        const data = await fetchLeaderboard();
+        console.log('Fetched leaderboard data:', data);
         setLeaderboard(data);
-      } catch (error) {
-        console.error('Error fetching leaderboard:', error);
+      } catch (err: any) {
+        console.error('Error in loadLeaderboard:', err);
+        setError(err.message || 'Failed to load leaderboard');
+        setLeaderboard([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLeaderboard();
+    loadLeaderboard();
   }, []);
 
   if (loading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
@@ -70,21 +103,25 @@ export default function LeaderboardScreen() {
         {leaderboard.length === 0 ? (
           <Text style={styles.noDataText}>No leaderboard data available.</Text>
         ) : (
-          leaderboard.map((user, index) => (
-            <View key={user._id} style={styles.rankingCard}>
+          leaderboard.map((entry) => (
+            <View 
+              key={`${entry.position}-${entry.userId || 'unknown'}`}
+              style={styles.rankingCard}
+            >
               <LinearGradient
                 colors={['#2A2A2A', '#1A1A1A']}
-                style={styles.gradientRankCard}>
+                style={styles.gradientRankCard}
+              >
                 <View style={styles.rankPosition}>
-                  <Text style={styles.rankNumber}>#{index + 1}</Text>
-                  {index < 3 && (
+                  <Text style={styles.rankNumber}>#{entry.position}</Text>
+                  {entry.position <= 3 && (
                     <Ionicons
                       name="trophy"
                       size={20}
                       color={
-                        index === 0
+                        entry.position === 1
                           ? '#FFD700'
-                          : index === 1
+                          : entry.position === 2
                           ? '#C0C0C0'
                           : '#CD7F32'
                       }
@@ -92,9 +129,9 @@ export default function LeaderboardScreen() {
                   )}
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{user.userId.name || 'Unknown'}</Text>
+                  <Text style={styles.userName}>{entry.name}</Text>
                   <Text style={styles.userStats}>
-                    {(user.shares || 0)} Shares • {(user.coins || 0).toFixed(2)} Coins
+                    {entry.shares.toLocaleString()} Shares • {entry.coins.toLocaleString()} Coins
                   </Text>
                 </View>
               </LinearGradient>
@@ -212,5 +249,15 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 16,
     textAlign: 'center',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    textAlign: 'center',
+    padding: 20,
   },
 });

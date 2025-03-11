@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { auth, User } from './services/auth';
-import { useRouter, useSegments } from 'expo-router';
+import { useSegments } from 'expo-router';
+import { Platform, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import UserMenu from "./components/UserMenu";
 
 declare global {
   interface Window {
@@ -18,11 +21,20 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Check authentication status
-    auth.getCurrentUser().then(user => {
-      console.log('Current user:', user); // Debug log
-      setUser(user);
-      setLoading(false);
-    });
+    const checkAuth = async () => {
+      try {
+        const currentUser = await auth.getCurrentUser();
+        console.log('Current user:', currentUser); // Debug log
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
   }, []);
 
   useEffect(() => {
@@ -41,32 +53,65 @@ export default function RootLayout() {
   }, [user, loading, segments]);
 
   useEffect(() => {
-    const handleUserChange = () => {
-      auth.getCurrentUser().then(user => {
-        setUser(user);
-      });
+    const handleUserChange = async () => {
+      const currentUser = await auth.getCurrentUser();
+      setUser(currentUser);
     };
 
-    window.addEventListener('userChange', handleUserChange);
+    const handleAuthError = () => {
+      setUser(null);
+      router.replace('/(auth)/login');
+    };
+
+    window?.addEventListener('userChange', handleUserChange);
+    window?.addEventListener('authError', handleAuthError);
+    
     return () => {
-      window.removeEventListener('userChange', handleUserChange);
+      window?.removeEventListener('userChange', handleUserChange);
+      window?.removeEventListener('authError', handleAuthError);
     };
   }, []);
 
-  const refreshUserState = async () => {
-    const user = await auth.getCurrentUser();
-    setUser(user);
-  };
+  // Prevent window.addEventListener error on Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // @ts-ignore
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.addEventListener = () => {};
+        // @ts-ignore
+        window.removeEventListener = () => {};
+      }
+    }
+  }, []);
 
   if (loading) {
     return null; // Or a loading screen
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(auth)/login" options={{ headerShown: false, refreshUserState }} />
-      <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#1A1A1A',
+          },
+          headerTintColor: '#FFD700',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+          headerRight: () => (
+            <View style={{ marginRight: 16 }}>
+              <UserMenu user={user} onImageUpdate={setUser} />
+            </View>
+          ),
+        }}
+      >
+        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <StatusBar style="light" />
+    </GestureHandlerRootView>
   );
 }

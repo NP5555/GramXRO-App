@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Alert } from 'react-native';
-import { api, Batch, User } from '../services/api';
+import api, { Batch, User } from '../services/api';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -36,15 +36,17 @@ export default function HomeScreen() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Using ID 1 for demo purposes - in real app, this would come from auth
-        const [user, batch] = await Promise.all([
-          api.getCurrentUser(),
-          api.getCurrentBatch()
-        ]);
+        const user = await api.getCurrentUser();
+        console.log('Fetched user:', user);
         setCurrentUser(user);
+        
+        const batch = await api.getCurrentBatch();
+        console.log('Fetched batch:', batch);
         setCurrentBatch(batch);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setCurrentUser(null);
+        setCurrentBatch(null);
       } finally {
         setLoading(false);
       }
@@ -60,7 +62,19 @@ export default function HomeScreen() {
   };
 
   if (loading) {
-    return <View style={styles.container}><Text>Loading...</Text></View>;
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (!currentUser || !currentBatch) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>Failed to load data</Text>
+      </View>
+    );
   }
 
   return (
@@ -308,5 +322,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginRight: 8,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });

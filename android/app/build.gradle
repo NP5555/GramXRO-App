@@ -4,6 +4,9 @@ apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
+// Move this to the top, before the react block
+def enableHermes = (findProperty('expo.jsEngine') ?: "hermes") == "hermes"
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -31,7 +34,7 @@ react {
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "prodDebug"]
+    debuggableVariants = ["debug"]
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -60,6 +63,11 @@ react {
 
     /* Autolinking */
     autolinkLibrariesWithApp()
+
+    // Remove jsEngine and enableHermes configurations
+    if ((findProperty('newArchEnabled') ?: false) == true) {
+        enableCodegen = true
+    }
 }
 
 /**
@@ -93,6 +101,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+
+        // Add these lines if using new architecture
+        buildConfigField("boolean", "IS_NEW_ARCHITECTURE_ENABLED", (findProperty('newArchEnabled') ?: false).toString())
     }
     signingConfigs {
         debug {
@@ -123,6 +134,10 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 }
 
@@ -168,7 +183,7 @@ dependencies {
         }
     }
 
-    if (hermesEnabled.toBoolean()) {
+    if (enableHermes) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
