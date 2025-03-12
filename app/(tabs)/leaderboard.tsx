@@ -8,17 +8,14 @@ import { LeaderboardEntry } from '../services/api';
 // Separate API function
 const fetchLeaderboard = async (): Promise<LeaderboardEntry[]> => {
   try {
-    const response = await fetch('http://localhost:3001/api/leaderboard');
+    const response = await fetch('https://gramx-be.onrender.com/leaderboard');
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const result = await response.json();
     
-    if (!result.success) {
-      throw new Error(result.message || 'Failed to fetch leaderboard');
-    }
-
-    return result.data;
+    // The API is returning the array directly, no need to check for success/data
+    return result;
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     throw error;
@@ -37,7 +34,7 @@ export default function LeaderboardScreen() {
         setLoading(true);
         setError(null);
         const data = await fetchLeaderboard();
-        console.log('Fetched leaderboard data:', data);
+        console.log('Raw leaderboard data:', data);
         setLeaderboard(data);
       } catch (err: any) {
         console.error('Error in loadLeaderboard:', err);

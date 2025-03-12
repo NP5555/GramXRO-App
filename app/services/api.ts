@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from './auth';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 // Create axios instance with default config
 const api = axios.create({
