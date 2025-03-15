@@ -114,14 +114,14 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        {/* <TouchableOpacity 
           style={[styles.googleButton, isLoading && styles.disabledButton]} 
           onPress={handleGoogleLogin}
           disabled={isLoading}
         >
           <Ionicons name="logo-google" size={20} color="#FFF" style={styles.googleIcon} />
           <Text style={styles.googleButtonText}>Login with Google</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <Link href="/(auth)/signup" asChild>
           <TouchableOpacity style={styles.signupLink} disabled={isLoading}>

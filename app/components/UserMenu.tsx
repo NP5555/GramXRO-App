@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { auth } from '../services/auth';
 import ProfileImage from './ProfileImage';
 import type { User } from '../services/auth';
+import { useAuth } from '../context/auth';
 
 interface UserMenuProps {
   user: User | null;
@@ -13,9 +13,10 @@ interface UserMenuProps {
 
 export default function UserMenu({ user, onImageUpdate }: UserMenuProps) {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await signOut();
     setIsMenuVisible(false);
     router.replace('/(auth)/login');
   };

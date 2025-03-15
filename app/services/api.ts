@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { auth } from './auth';
 
-const API_BASE_URL = 'https://gramx-be.onrender.com';
+const API_BASE_URL = 'http://localhost:3000';
+// const API_BASE_URL = 'https://gramx-be.onrender.com';
+
 
 // Create axios instance with default config
 const api = axios.create({
@@ -9,14 +11,19 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true // Enable sending cookies with requests
 });
 
 // Add request interceptor for authentication
 api.interceptors.request.use(
-  (config) => {
-    const token = auth.getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const token = await auth.getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error getting token:', error);
     }
     return config;
   },
@@ -28,11 +35,11 @@ api.interceptors.request.use(
 // Add response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401 || error.response?.status === 403) {
       // Token expired or invalid
-      auth.logout(); // This will trigger the authError event
+      await auth.logout(); // This will trigger the authError event
     }
     return Promise.reject(error);
   }
@@ -43,6 +50,9 @@ export interface User {
   name: string;
   email: string;
   referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
+  referralEarnings?: number;
   tokens: number;
   shares: number;
   profileImage?: string;
@@ -76,6 +86,57 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   message?: string;
+}
+
+export interface ReferralUserInfo {
+  totalReferrals: number;
+  totalEarnings: number;
+  referralCode: string;
+  referralLink: string;
+}
+
+export interface ReferralStats {
+  referralCode: string;
+  totalReferrals: number;
+  referralEarnings: number;
+  referralLink: string;
+}
+
+export interface ReferredUser {
+  _id: string;
+  name: string;
+  email: string;
+  referredBy: string;
+  referralCount: number;
+  referralEarnings: number;
+  tokens: number;
+  shares: number;
+  createdAt: string;
+  referralCode: string;
+}
+
+export interface ReferralValidationResponse {
+  valid: boolean;
+  referrerName?: string;
+  message?: string;
+}
+
+export interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+  referralCode?: string;
+}
+
+export interface SignupResponse {
+  success: boolean;
+  message?: string;
+  token?: string;
+}
+
+export interface ReferralResponse {
+  success: boolean;
+  data: ReferralStats;
 }
 
 export const apiService = {
@@ -137,12 +198,129 @@ export const apiService = {
 
   async completeTask(task: string): Promise<ApiResponse<{ newBalance: number }>> {
     try {
+      if (!task) {
+        throw new Error('Task is required');
+      }
+      
       const response = await api.post('/tasks/complete', { task });
       console.log('Task completion response:', response.data);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to complete task');
+      }
+      
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error completing task:', error);
-      throw error;
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error('Failed to complete task. Please try again later.');
+    }
+  },
+
+  async getReferralStats(): Promise<ReferralStats> {
+    try {
+      const response = await api.get<ReferralResponse>('/api/referral-stats', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Raw referral response:', response);
+      
+      if (!response.data || !response.data.success || !response.data.data) {
+        throw new Error('Invalid response format');
+      }
+      
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error fetching referral stats:', error);
+      if (error.response?.status === 401) {
+        throw new Error('Unauthorized. Please login again.');
+      } else if (error.response?.status === 400) {
+        throw new Error(error.response.data.details || 'Invalid request');
+      } else if (error.response?.status === 404) {
+        throw new Error('User not found');
+      }
+      throw new Error(error.response?.data?.message || error.response?.data?.details || 'Failed to fetch referral stats');
+    }
+  },
+
+  async validateReferralCode(code: string): Promise<ReferralValidationResponse> {
+    try {
+      if (!code) {
+        return { valid: false, message: 'Referral code is required' };
+      }
+
+      // Convert to uppercase for consistency
+      const upperCode = code.toUpperCase();
+      
+      // Validate format
+      if (!/^[A-Z0-9]{6}$/.test(upperCode)) {
+        return { 
+          valid: false, 
+          message: 'Referral code must be 6 characters long and contain only letters and numbers' 
+        };
+      }
+
+      const response = await api.get(`/referral/validate/${upperCode}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error validating referral code:', error);
+      
+      if (error.response?.status === 404) {
+        return { 
+          valid: false, 
+          message: 'Invalid referral code' 
+        };
+      }
+      
+      throw new Error(error.response?.data?.message || 'Error validating referral code');
+    }
+  },
+
+  async signup(data: SignupData): Promise<SignupResponse> {
+    try {
+      const response = await api.post('/auth/signup', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      throw new Error(error.response?.data?.message || 'Failed to sign up');
+    }
+  },
+
+  async getUserReferrals(): Promise<any> {
+    try {
+      // Debug the token
+      const token = await auth.getToken();
+      console.log('Token being used:', token);
+
+      const response = await api.get('/user/referrals', {
+        headers: {
+          'Accept': 'application/json',
+          // Explicitly set the Authorization header for debugging
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('Raw referrals response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Full error object:', error);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      if (error.response?.status === 401) {
+        throw new Error('Unauthorized. Please login again.');
+      } else if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.data?.details) {
+        throw new Error(error.response.data.details);
+      }
+      throw new Error('Failed to fetch user referrals');
     }
   },
 };

@@ -1,140 +1,138 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LeaderboardEntry } from '../services/api';
-
-// Separate API function
-const fetchLeaderboard = async (): Promise<LeaderboardEntry[]> => {
-  try {
-    const response = await fetch('https://gramx-be.onrender.com/leaderboard');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const result = await response.json();
-    
-    // The API is returning the array directly, no need to check for success/data
-    return result;
-  } catch (error) {
-    console.error('Error fetching leaderboard:', error);
-    throw error;
-  }
-};
+import apiService, { LeaderboardEntry } from '../services/api';
 
 export default function LeaderboardScreen() {
   const insets = useSafeAreaInsets();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadLeaderboard = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchLeaderboard();
-        console.log('Raw leaderboard data:', data);
-        setLeaderboard(data);
-      } catch (err: any) {
-        console.error('Error in loadLeaderboard:', err);
-        setError(err.message || 'Failed to load leaderboard');
-        setLeaderboard([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadLeaderboard();
   }, []);
 
+  const loadLeaderboard = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiService.getLeaderboard();
+      setLeaderboard(data);
+    } catch (error: any) {
+      console.error('Error loading leaderboard:', error);
+      setError(error.message || 'Failed to load leaderboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPositionColor = (position: number) => {
+    switch (position) {
+      case 1:
+        return '#FFD700'; // Gold
+      case 2:
+        return '#C0C0C0'; // Silver
+      case 3:
+        return '#CD7F32'; // Bronze
+      default:
+        return '#666666'; // Default color
+    }
+  };
+
+  const renderLeaderboardItem = (entry: LeaderboardEntry, index: number) => (
+    <View key={`${entry.position}-${entry.userId || index}`} style={styles.rankingCard}>
+      <LinearGradient
+        colors={['#2A2A2A', '#1A1A1A']}
+        style={styles.gradientCard}
+      >
+        <View style={styles.rankingContent}>
+          <View style={[styles.positionBadge, { backgroundColor: getPositionColor(entry.position) }]}>
+            <Text style={styles.positionText}>#{entry.position}</Text>
+          </View>
+
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>
+              {entry.name}
+              {entry.userId === null && ' 👻'}
+            </Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Ionicons name="cash-outline" size={16} color="#FFD700" />
+                <Text style={styles.statText}>{entry.coins.toLocaleString()}</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Ionicons name="share-social-outline" size={16} color="#4CAF50" />
+                <Text style={styles.statText}>{entry.shares.toLocaleString()}</Text>
+              </View>
+            </View>
+          </View>
+
+          {entry.position <= 3 && (
+            <View style={styles.trophyContainer}>
+              <Ionicons
+                name="trophy"
+                size={24}
+                color={getPositionColor(entry.position)}
+              />
+            </View>
+          )}
+        </View>
+      </LinearGradient>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
+      <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#FFD700" />
+        <Text style={styles.loadingText}>Loading leaderboard...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, styles.centerContent, { paddingTop: insets.top }]}>
+      <View style={[styles.container, styles.centerContent]}>
+        <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
+    <ScrollView 
+      style={[styles.container, { paddingTop: insets.top }]}
+      contentContainerStyle={styles.contentContainer}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Leaderboard</Text>
         <Text style={styles.subtitle}>Top performers this week</Text>
       </View>
 
-      <View style={styles.rewardsCard}>
-        <LinearGradient
-          colors={['#2A2A2A', '#1A1A1A']}
-          style={styles.gradientCard}>
-          <Text style={styles.rewardsTitle}>Leaderboard Rewards</Text>
-          <View style={styles.rewardsGrid}>
-            <View style={styles.rewardItem}>
-              <Ionicons name="trophy" size={24} color="#FFD700" />
-              <Text style={styles.rewardValue}>25,000</Text>
-              <Text style={styles.rewardLabel}>1st Prize</Text>
-            </View>
-            <View style={styles.rewardItem}>
-              <Ionicons name="trophy" size={24} color="#C0C0C0" />
-              <Text style={styles.rewardValue}>15,000</Text>
-              <Text style={styles.rewardLabel}>2nd Prize</Text>
-            </View>
-            <View style={styles.rewardItem}>
-              <Ionicons name="trophy" size={24} color="#CD7F32" />
-              <Text style={styles.rewardValue}>10,000</Text>
-              <Text style={styles.rewardLabel}>3rd Prize</Text>
-            </View>
+      <View style={styles.podiumContainer}>
+        {leaderboard.slice(0, 3).map((entry, index) => (
+          <View 
+            key={entry.userId || index} 
+            style={[
+              styles.podiumItem,
+              { 
+                height: [120, 150, 100][index],
+                backgroundColor: getPositionColor(index + 1)
+              }
+            ]}
+          >
+            <Text style={styles.podiumPosition}>#{index + 1}</Text>
+            <Text style={styles.podiumName} numberOfLines={1}>{entry.name}</Text>
+            <Text style={styles.podiumScore}>{entry.coins.toLocaleString()}</Text>
           </View>
-        </LinearGradient>
+        ))}
       </View>
 
-      <View style={styles.rankingsSection}>
-        {leaderboard.length === 0 ? (
-          <Text style={styles.noDataText}>No leaderboard data available.</Text>
-        ) : (
-          leaderboard.map((entry) => (
-            <View 
-              key={`${entry.position}-${entry.userId || 'unknown'}`}
-              style={styles.rankingCard}
-            >
-              <LinearGradient
-                colors={['#2A2A2A', '#1A1A1A']}
-                style={styles.gradientRankCard}
-              >
-                <View style={styles.rankPosition}>
-                  <Text style={styles.rankNumber}>#{entry.position}</Text>
-                  {entry.position <= 3 && (
-                    <Ionicons
-                      name="trophy"
-                      size={20}
-                      color={
-                        entry.position === 1
-                          ? '#FFD700'
-                          : entry.position === 2
-                          ? '#C0C0C0'
-                          : '#CD7F32'
-                      }
-                    />
-                  )}
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{entry.name}</Text>
-                  <Text style={styles.userStats}>
-                    {entry.shares.toLocaleString()} Shares • {entry.coins.toLocaleString()} Coins
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-          ))
-        )}
+      <View style={styles.rankingsContainer}>
+        {leaderboard.map((entry, index) => renderLeaderboardItem(entry, index))}
       </View>
     </ScrollView>
   );
@@ -145,116 +143,125 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
+  contentContainer: {
+    paddingBottom: 20,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   header: {
     padding: 20,
+    marginBottom: 10,
   },
   title: {
-    color: '#FFF',
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 8,
   },
   subtitle: {
-    color: '#999',
     fontSize: 16,
-    marginTop: 4,
-  },
-  rewardsCard: {
-    padding: 20,
-  },
-  gradientCard: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.6,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  gradientRankCard: {
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rewardsTitle: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  rewardsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  rewardItem: {
-    alignItems: 'center',
-  },
-  rewardValue: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  rewardLabel: {
     color: '#999',
+  },
+  podiumContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    marginBottom: 30,
+    height: 180,
+  },
+  podiumItem: {
+    width: '30%',
+    margin: 5,
+    borderRadius: 12,
+    justifyContent: 'flex-end',
+    padding: 10,
+    alignItems: 'center',
+  },
+  podiumPosition: {
+    color: '#000',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  podiumName: {
+    color: '#000',
     fontSize: 14,
+    fontWeight: 'bold',
     marginTop: 4,
   },
-  rankingsSection: {
-    padding: 20,
+  podiumScore: {
+    color: '#000',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  rankingsContainer: {
+    paddingHorizontal: 20,
   },
   rankingCard: {
     marginBottom: 12,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.6,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 10,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#333',
   },
-  rankPosition: {
+  gradientCard: {
+    padding: 16,
+  },
+  rankingContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
   },
-  rankNumber: {
-    color: '#FFF',
-    fontSize: 18,
+  positionBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  positionText: {
+    color: '#000',
+    fontSize: 16,
     fontWeight: 'bold',
-    marginRight: 8,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
-  userStats: {
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statText: {
     color: '#999',
     fontSize: 14,
-    marginTop: 4,
+    marginLeft: 4,
   },
-  noDataText: {
-    color: '#999',
+  trophyContainer: {
+    marginLeft: 12,
+  },
+  loadingText: {
+    color: '#FFF',
     fontSize: 16,
-    textAlign: 'center',
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 12,
   },
   errorText: {
     color: '#FF6B6B',
     fontSize: 16,
+    marginTop: 12,
     textAlign: 'center',
-    padding: 20,
   },
 });

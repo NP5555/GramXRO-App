@@ -6,6 +6,10 @@ import React, { useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Alert } from 'react-native';
 import api, { Batch, User } from '../services/api';
+import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import * as auth from '../services/auth';
+import UserMenu from '../components/UserMenu';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -14,6 +18,7 @@ export default function HomeScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentBatch, setCurrentBatch] = useState<Batch | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   // Add animation effect
   useEffect(() => {
@@ -35,18 +40,24 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const user = await api.getCurrentUser();
-        console.log('Fetched user:', user);
-        setCurrentUser(user);
+        const [user, batch] = await Promise.all([
+          api.getCurrentUser(),
+          api.getCurrentBatch()
+        ]);
         
-        const batch = await api.getCurrentBatch();
+        console.log('Fetched user:', user);
         console.log('Fetched batch:', batch);
+        
+        setCurrentUser(user);
         setCurrentBatch(batch);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setCurrentUser(null);
-        setCurrentBatch(null);
+        Alert.alert(
+          'Error',
+          'Failed to load data. Please check your internet connection and try again.'
+        );
       } finally {
         setLoading(false);
       }
@@ -56,7 +67,7 @@ export default function HomeScreen() {
   }, []);
 
   const handleCopyCode = async () => {
-    const referralCode = '3geqq1';
+    const referralCode = currentUser?.referralCode || '';
     await Clipboard.setStringAsync(referralCode);
     Alert.alert('Success', 'Referral code copied to clipboard!');
   };
@@ -84,12 +95,7 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.username}>{currentUser?.name}</Text>
         </View>
-        <TouchableOpacity style={styles.profileButton}>
-          <Image 
-            source={{ uri: currentUser?.profileImage }} 
-            style={{ width: 52, height: 52, borderRadius: 26 }} 
-          />
-        </TouchableOpacity>
+        <UserMenu user={currentUser} onImageUpdate={setCurrentUser} />
       </View>
 
       <View style={styles.statsContainer}>
@@ -182,10 +188,41 @@ export default function HomeScreen() {
             <Ionicons name="copy" size={20} color="#FFD700" />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.shareButton}>
-          <Text style={styles.shareButtonText}>Share & Earn</Text>
-          <Ionicons name="share-social" size={20} color="#000" />
-        </TouchableOpacity>
+        <View style={styles.referralButtonsRow}>
+          <TouchableOpacity 
+            style={styles.shareButton}
+            onPress={async () => {
+              try {
+                const message = `Join GramXRO using my referral code: ${currentUser?.referralCode}. Sign up here: https://gramx.netlify.app/register?ref=${currentUser?.referralCode}`;
+                const isAvailable = await Sharing.isAvailableAsync();
+                if (isAvailable) {
+                  await Sharing.shareAsync(message);
+                } else {
+                  Alert.alert('Sharing is not available on this device');
+                }
+              } catch (error) {
+                console.error('Error sharing:', error);
+                Alert.alert('Error', 'Failed to share referral link');
+              }
+            }}
+          >
+            <Text style={styles.shareButtonText}>Share & Earn</Text>
+            <Ionicons name="share-social" size={20} color="#000" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.referralsButton}
+            onPress={() => router.push('/(tabs)/referrals')}
+          >
+            <Text style={styles.referralsButtonText}>My Referrals</Text>
+            <Ionicons name="people" size={20} color="#FFD700" />
+          </TouchableOpacity>
+        </View>
+        {currentUser?.referralCount ? (
+          <Text style={styles.referralStats}>
+            You've referred {currentUser.referralCount} {currentUser.referralCount === 1 ? 'person' : 'people'} and earned {currentUser.referralEarnings} tokens!
+          </Text>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -302,10 +339,15 @@ const styles = StyleSheet.create({
   copyButton: {
     padding: 8,
   },
+  referralButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   shareButton: {
     backgroundColor: 'rgb(233, 203, 6)', 
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -316,12 +358,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     backdropFilter: 'blur(10px)',
+    flex: 1,
+    marginRight: 8,
   },
   shareButtonText: {
     color: '#000',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginRight: 8,
+  },
+  referralsButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    backdropFilter: 'blur(10px)',
+    flex: 1,
+  },
+  referralsButtonText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  referralStats: {
+    color: '#BBB',
+    fontSize: 14,
+    textAlign: 'center',
   },
   centerContent: {
     justifyContent: 'center',

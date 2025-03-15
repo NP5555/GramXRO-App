@@ -1,64 +1,133 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../services/auth';
+import apiService from '../services/api';
 import ProfileImage from '../components/ProfileImage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/auth';
 
 export default function SignupScreen() {
+  const params = useLocalSearchParams();
+  const router = useRouter();
+  const { signIn } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [isValidReferral, setIsValidReferral] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [referrerName, setReferrerName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<any>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
-  const pickImage = async () => {
-    Alert.alert('Image URL', 'Please paste the image URL below:', [
-      {
-        text: 'OK',
-        onPress: (url) => {
-          if (url) {
-            setImageUrl(url);
-          }
-        },
-      },
-    ]);
+  // Check for referral code in URL params
+  useEffect(() => {
+    const checkReferralCode = async () => {
+      const refCode = params.ref as string;
+      if (refCode) {
+        setReferralCode(refCode);
+        validateReferralCode(refCode);
+      }
+    };
+    
+    checkReferralCode();
+  }, [params]);
+
+  const validateReferralCode = async (code: string) => {
+    if (!code) return;
+    
+    setIsValidating(true);
+    try {
+      const result = await apiService.validateReferralCode(code);
+      if (result.valid) {
+        setReferrerName(result.referrerName || null);
+        setIsValidReferral(true);
+        setReferralError(null);
+      } else {
+        setReferrerName(null);
+        setIsValidReferral(false);
+        setReferralError(result.message || null);
+      }
+    } catch (error) {
+      console.error('Error validating referral code:', error);
+      setReferrerName(null);
+      setIsValidReferral(false);
+      setReferralError('An error occurred');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleReferralCodeChange = async (code: string) => {
+    try {
+      setReferralCode(code);
+      setIsValidating(true);
+      setReferralError(null);
+
+      if (!code) {
+        setIsValidReferral(false);
+        setReferrerName(null);
+        return;
+      }
+
+      const result = await apiService.validateReferralCode(code);
+      setIsValidReferral(result.valid);
+      
+      if (result.valid && result.referrerName) {
+        setReferrerName(result.referrerName);
+        setReferralError(null);
+      } else {
+        setReferralError(result.message || 'Invalid referral code');
+        setReferrerName(null);
+      }
+    } catch (error: any) {
+      console.error('Error:', error);
+      setReferralError(error.message || 'An error occurred');
+      setIsValidReferral(false);
+      setReferrerName(null);
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const handleSignup = async () => {
-    if (!name || !email || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
     try {
-      const signupData = {
+      setLoading(true);
+      setError(null);
+
+      if (!name || !email || !password) {
+        setError('Please fill in all required fields');
+        return;
+      }
+
+      // Validate referral code if provided
+      if (referralCode && !isValidReferral) {
+        setError('Please enter a valid referral code or leave it empty');
+        return;
+      }
+
+      const response = await apiService.signup({
         name,
         email,
         password,
-        profileImage: imageUrl ? { uri: imageUrl } : undefined
-      };
-
-      console.log('Attempting signup with:', {
-        ...signupData,
-        password: '***hidden***'
+        referralCode: referralCode ? referralCode.toUpperCase() : undefined
       });
 
-      const response = await auth.signup(signupData);
-
-      if (response.success) {
+      if (response.success && response.token) {
+        await signIn(response.token);
         router.replace('/(tabs)');
       } else {
-        setError(response.message || 'Signup failed');
+        setError(response.message || 'Failed to sign up');
       }
     } catch (error: any) {
       console.error('Signup error:', error);
-      setError(error.message || 'An error occurred');
+      setError(error.message || 'Failed to sign up');
     } finally {
       setLoading(false);
     }
@@ -102,11 +171,40 @@ export default function SignupScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Image URL"
+          placeholder="Image URL (optional)"
           placeholderTextColor="#666"
           value={imageUrl}
           onChangeText={setImageUrl}
         />
+
+        <View style={styles.referralContainer}>
+          <TextInput
+            style={[
+              styles.input,
+              styles.referralInput,
+              isValidReferral && styles.validReferral,
+              referralError && styles.invalidReferral
+            ]}
+            placeholder="Referral Code (Optional)"
+            placeholderTextColor="#666"
+            value={referralCode}
+            onChangeText={handleReferralCodeChange}
+            autoCapitalize="characters"
+          />
+          {isValidating ? (
+            <ActivityIndicator size="small" color="#FFD700" style={styles.referralIcon} />
+          ) : isValidReferral ? (
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" style={styles.referralIcon} />
+          ) : referralError ? (
+            <Ionicons name="close-circle" size={24} color="#FF6B6B" style={styles.referralIcon} />
+          ) : null}
+        </View>
+
+        {referrerName && (
+          <Text style={styles.referrerText}>
+            Referred by: {referrerName}
+          </Text>
+        )}
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -115,11 +213,16 @@ export default function SignupScreen() {
           onPress={handleSignup}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>Sign Up</Text>
-          )}
+          <LinearGradient
+            colors={['#FFD700', '#FFA500']}
+            style={styles.gradient}
+          >
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <View style={styles.footer}>
@@ -175,12 +278,40 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
   },
-  button: {
-    backgroundColor: '#FFD700',
-    borderRadius: 8,
-    padding: 15,
+  referralContainer: {
+    position: 'relative',
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
+  },
+  referralInput: {
+    flex: 1,
+    marginBottom: 8,
+  },
+  referralIcon: {
+    position: 'absolute',
+    right: 15,
+  },
+  validReferral: {
+    borderColor: '#4CAF50',
+    borderWidth: 1,
+  },
+  invalidReferral: {
+    borderColor: '#FF6B6B',
+    borderWidth: 1,
+  },
+  referrerText: {
+    color: '#FFD700',
+    marginBottom: 16,
+    fontSize: 14,
+  },
+  button: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  gradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   buttonDisabled: {
     opacity: 0.7,

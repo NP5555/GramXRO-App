@@ -2,6 +2,14 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 
+// Helper function for tab bar icons
+function TabBarIcon(props: {
+  name: React.ComponentProps<typeof Ionicons>['name'];
+  color: string;
+}) {
+  return <Ionicons size={24} style={{ marginBottom: -3 }} {...props} />;
+}
+
 export default function TabLayout() {
   return (
     <Tabs
@@ -51,6 +59,15 @@ export default function TabLayout() {
           title: 'Pre-Sale',
           tabBarIcon: ({ size, color }) => (
             <Ionicons name="cart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="referrals"
+        options={{
+          title: 'Referrals',
+          tabBarIcon: ({ size, color }) => (
+            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />

@@ -1,12 +1,20 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://gramx-be.onrender.com';
+const API_BASE_URL = 'http://localhost:3000';
+// const API_BASE_URL = 'https://gramx-be.onrender.com';
+
+const TOKEN_KEY = '@auth_token';
+const USER_KEY = '@user_data';
 
 export interface User {
   _id: string;
   name: string;
   email: string;
   referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
+  referralEarnings?: number;
   tokens: number;
   shares: number;
   profileImage?: string;
@@ -30,10 +38,14 @@ const authApi = axios.create({
 
 // Add request interceptor
 authApi.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error getting token:', error);
     }
     return config;
   },
@@ -45,13 +57,12 @@ authApi.interceptors.request.use(
 // Add response interceptor
 authApi.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      // Dispatch event for app to handle
-      window.dispatchEvent(new Event('authError'));
+  async (error) => {
+    if (error.response?.status === 401) {
+      await auth.logout();
+      // Dispatch an event to notify the app about auth error
+      const event = new Event('authError');
+      window?.dispatchEvent(event);
     }
     return Promise.reject(error);
   }
@@ -61,176 +72,106 @@ export interface SignupData {
   email: string;
   password: string;
   name: string;
-  profileImage?: any; // File object from image picker
+  profileImage?: any;
+  referralCode?: string;
 }
 
 export const auth = {
   async login(email: string, password: string): Promise<AuthResponse> {
     try {
-      // Basic validation
-      if (!email || !password) {
-        return {
-          success: false,
-          message: 'Email and password are required'
-        };
-      }
-
-      // Trim whitespace from email
-      email = email.trim();
-
-      console.log('Attempting login with email:', email);
+      const response = await authApi.post('/auth/login', { email, password });
+      const { token, user } = response.data;
       
-      const response = await authApi.post('/auth/login', { 
-        email, 
-        password 
-      });
-
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        return { 
-          success: true, 
-          token: response.data.token, 
-          user: response.data.user 
-        };
+      if (token) {
+        await AsyncStorage.setItem(TOKEN_KEY, token);
+        if (user) {
+          await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+        }
       }
       
-      return { 
-        success: false, 
-        message: response.data.message || 'No token received' 
-      };
+      return response.data;
     } catch (error: any) {
-      console.error('Login error:', error.response?.data || error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Invalid email or password',
-      };
+      console.error('Login error:', error);
+      throw new Error(error.response?.data?.message || 'Failed to login');
     }
   },
 
   async signup(data: SignupData): Promise<AuthResponse> {
     try {
-      // If we're getting a URL instead of a file, send as JSON
-      if (data.profileImage?.uri) {
-        const response = await authApi.post('/auth/register', {
-          email: data.email,
-          password: data.password,
-          name: data.name,
-          profileImage: data.profileImage.uri
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.data.token) {
-          localStorage.setItem('token', response.data.token);
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-          return { success: true, token: response.data.token, user: response.data.user };
+      const response = await authApi.post('/auth/signup', data);
+      const { token, user } = response.data;
+      
+      if (token) {
+        await AsyncStorage.setItem(TOKEN_KEY, token);
+        if (user) {
+          await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
         }
-        return { success: false, message: 'No token received' };
       }
-
-      // If we have an actual file, use FormData
-      const formData = new FormData();
-      formData.append('email', data.email);
-      formData.append('password', data.password);
-      formData.append('name', data.name);
       
-      if (data.profileImage) {
-        formData.append('profileImage', data.profileImage);
-      }
-
-      const response = await authApi.post('/auth/register', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        return { success: true, token: response.data.token, user: response.data.user };
-      }
-      return { success: false, message: 'No token received' };
+      return response.data;
     } catch (error: any) {
-      console.error('Signup error details:', error.response?.data);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Signup failed',
-      };
+      console.error('Signup error:', error);
+      throw new Error(error.response?.data?.message || 'Failed to sign up');
     }
   },
 
-  async updateProfileImage(imageFile: any): Promise<AuthResponse> {
+  async logout() {
     try {
-      const formData = new FormData();
-      formData.append('profileImage', imageFile);
-
-      const response = await authApi.put('/auth/profile/image', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      if (response.data.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        return { success: true, user: response.data.user };
-      }
-      return { success: false, message: 'Failed to update profile image' };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to update profile image',
-      };
-    }
-  },
-
-  async getCurrentUser(): Promise<User | null> {
-    try {
-      // First try to get from localStorage
-      const cachedUser = this.getUser();
-      if (cachedUser) {
-        return cachedUser;
-      }
-      
-      // If not in cache, fetch from API
-      const response = await authApi.get('/auth/profile');
-      const user = response.data;
-      
-      // Update cache
-      localStorage.setItem('user', JSON.stringify(user));
-      return user;
+      await AsyncStorage.removeItem(TOKEN_KEY);
+      await AsyncStorage.removeItem(USER_KEY);
     } catch (error) {
-      console.error('Error getting current user:', error);
+      console.error('Error during logout:', error);
+    }
+  },
+
+  async getToken(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(TOKEN_KEY);
+    } catch (error) {
+      console.error('Error getting token:', error);
       return null;
     }
   },
 
-  logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.dispatchEvent(new Event('userChange'));
+  async setToken(token: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(TOKEN_KEY, token);
+    } catch (error) {
+      console.error('Error setting token:', error);
+    }
   },
 
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+  async clearToken(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(TOKEN_KEY);
+    } catch (error) {
+      console.error('Error clearing token:', error);
+    }
   },
 
-  getToken(): string | null {
-    return localStorage.getItem('token');
+  async getUser(): Promise<User | null> {
+    try {
+      const userStr = await AsyncStorage.getItem(USER_KEY);
+      return userStr ? JSON.parse(userStr) : null;
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return null;
+    }
   },
 
-  getUser(): User | null {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+  async setUser(user: User): Promise<void> {
+    try {
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    } catch (error) {
+      console.error('Error setting user:', error);
+    }
   },
 
   getProfileImageUrl(user: User | null): string {
-    if (!user || !user.profileImage) {
-      return '/default-avatar.png'; // Make sure to have this default image in your assets
-    }
-    return `${API_BASE_URL}${user.profileImage}`;
+    if (!user?.profileImage) return '';
+    return user.profileImage.startsWith('http') 
+      ? user.profileImage 
+      : `${API_BASE_URL}/uploads/${user.profileImage}`;
   }
 };
 
