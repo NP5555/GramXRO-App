@@ -116,7 +116,8 @@ export default function SignupScreen() {
         name,
         email,
         password,
-        referralCode: referralCode ? referralCode.toUpperCase() : undefined
+        referralCode: referralCode ? referralCode.toUpperCase() : undefined,
+        profileImage: imageUrl || undefined
       });
 
       if (response.success && response.token) {

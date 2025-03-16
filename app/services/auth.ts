@@ -1,8 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://localhost:3000';
-// const API_BASE_URL = 'https://gramx-be.onrender.com';
+// const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 const TOKEN_KEY = '@auth_token';
 const USER_KEY = '@user_data';

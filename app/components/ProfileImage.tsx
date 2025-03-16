@@ -74,6 +74,7 @@ export default function ProfileImage({
       ) : (
         <Image
           source={{ uri: imageUrl }}
+          resizeMode="cover"
           style={[
             styles.image,
             { width: size, height: size, borderRadius: size / 2 }
@@ -92,6 +93,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2A2A2A',
   },
   image: {
-    resizeMode: 'cover',
+    width: '100%',
+    height: '100%',
   },
 }); 

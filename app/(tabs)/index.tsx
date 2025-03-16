@@ -57,6 +57,7 @@ export default function HomeScreen() {
         }
         
         setCurrentUser(user);
+        console.log(user)
         setCurrentBatch(batch);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -274,12 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 2,
     borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.6,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    backdropFilter: 'blur(10px)',
-    elevation: 10,
+    boxShadow: '0 4px 10px rgba(255, 215, 0, 0.6)',
   },
   statRow: {
     flexDirection: 'row',
@@ -336,11 +332,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    backdropFilter: 'blur(10px)',
+    boxShadow: '0 4px 8px rgba(255, 215, 0, 0.4)',
   },
   codeText: {
     color: '#FFD700',
@@ -365,10 +357,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.5,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(255, 215, 0, 0.5)',
     backdropFilter: 'blur(10px)',
     flex: 1,
     marginRight: 8,
@@ -388,10 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(255, 215, 0, 0.3)',
     backdropFilter: 'blur(10px)',
     flex: 1,
   },
