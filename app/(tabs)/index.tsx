@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as auth from '../services/auth';
 import UserMenu from '../components/UserMenu';
+import { useAuth } from '../context/auth';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -19,6 +20,7 @@ export default function HomeScreen() {
   const [currentBatch, setCurrentBatch] = useState<Batch | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { signOut } = useAuth();
   
   // Add animation effect
   useEffect(() => {
@@ -47,13 +49,23 @@ export default function HomeScreen() {
           api.getCurrentBatch()
         ]);
         
-        console.log('Fetched user:', user);
-        console.log('Fetched batch:', batch);
+        if (!user) {
+          // If no user data, redirect to login
+          await signOut();
+          router.replace('/(auth)/login');
+          return;
+        }
         
         setCurrentUser(user);
         setCurrentBatch(batch);
       } catch (error) {
         console.error('Error fetching data:', error);
+        // If error is auth-related, redirect to login
+        if ((error as any)?.response?.status === 401) {
+          await signOut();
+          router.replace('/(auth)/login');
+          return;
+        }
         Alert.alert(
           'Error',
           'Failed to load data. Please check your internet connection and try again.'
@@ -64,7 +76,7 @@ export default function HomeScreen() {
     };
 
     fetchData();
-  }, []);
+  }, [router, signOut]);
 
   const handleCopyCode = async () => {
     const referralCode = currentUser?.referralCode || '';

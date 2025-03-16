@@ -16,9 +16,17 @@ export default function UserMenu({ user, onImageUpdate }: UserMenuProps) {
   const { signOut } = useAuth();
 
   const handleLogout = async () => {
-    await signOut();
-    setIsMenuVisible(false);
-    router.replace('/(auth)/login');
+    try {
+      setIsMenuVisible(false); // Close menu first
+      await signOut(); // Wait for signout to complete
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100); // Small delay to ensure state is cleared
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still try to navigate even if there's an error
+      router.replace('/(auth)/login');
+    }
   };
 
   const handleProfileUpdate = (updatedUser: User) => {

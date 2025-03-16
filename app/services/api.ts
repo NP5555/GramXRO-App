@@ -259,12 +259,12 @@ export const apiService = {
       const upperCode = code.toUpperCase();
       
       // Validate format
-      if (!/^[A-Z0-9]{6}$/.test(upperCode)) {
-        return { 
-          valid: false, 
-          message: 'Referral code must be 6 characters long and contain only letters and numbers' 
-        };
-      }
+      // if (!/^[A-Z0-9]{6}$/.test(upperCode)) {
+      //   return { 
+      //     valid: false, 
+      //     message: 'Referral code must be 6 characters long and contain only letters and numbers' 
+      //   };
+      // }
 
       const response = await api.get(`/referral/validate/${upperCode}`);
       return response.data;
