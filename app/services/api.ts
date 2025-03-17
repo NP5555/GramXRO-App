@@ -224,7 +224,7 @@ export const apiService = {
 
   async getReferralStats(): Promise<ReferralStats> {
     try {
-      const response = await api.get<ReferralResponse>('/api/referral-stats', {
+      const response = await api.get<ReferralResponse>('/referral-stats', {
         headers: {
           'Accept': 'application/json'
         }
@@ -267,7 +267,7 @@ export const apiService = {
       //   };
       // }
 
-      const response = await api.get(`/referral/validate/${upperCode}`);
+      const response = await api.get(`/user/referral/validate/${upperCode}`);
       return response.data;
     } catch (error: any) {
       console.error('Error validating referral code:', error);

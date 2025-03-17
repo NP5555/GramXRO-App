@@ -7,9 +7,34 @@ import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import apiService, { ReferralStats } from '../services/api';
 
+interface ReferralData {
+  currentUser: {
+    name: string;
+    email: string;
+    referralCode: string;
+    tokens: number;
+    shares: number;
+    joinedAt: string;
+    referralCount: number;
+    referralEarnings: number;
+  };
+  stats: ReferralStats;
+  referredBy: {
+    name: string;
+    email: string;
+    referralCode: string;
+  } | null;
+  referredUsers: any[];
+  summary: {
+    averageTokensPerReferred: number;
+    totalShares: number;
+    lastReferral: string | null;
+  };
+}
+
 export default function ReferralsScreen() {
   const insets = useSafeAreaInsets();
-  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralData, setReferralData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,18 +47,12 @@ export default function ReferralsScreen() {
       setLoading(true);
       setError(null);
       
-      // First try to get user referrals
-      try {
-        const referralsData = await apiService.getUserReferrals();
-        console.log('Referrals data:', referralsData);
-      } catch (referralsError) {
-        console.error('Error fetching user referrals:', referralsError);
+      const response = await apiService.getUserReferrals();
+      if (response.success && response.data) {
+        setReferralData(response.data);
+      } else {
+        throw new Error('Failed to load referral data');
       }
-
-      // Fallback to referral stats if needed
-      const stats = await apiService.getReferralStats();
-      console.log('Referral stats:', stats);
-      setReferralStats(stats);
     } catch (error: any) {
       console.error('Error loading referral stats:', error);
       setError(error.message || 'Failed to load referral statistics');
@@ -44,24 +63,25 @@ export default function ReferralsScreen() {
   };
 
   const handleCopyCode = async () => {
-    if (!referralStats?.referralCode) return;
+    if (!referralData?.currentUser.referralCode) return;
     
-    await Clipboard.setStringAsync(referralStats.referralCode);
+    await Clipboard.setStringAsync(referralData.currentUser.referralCode);
     Alert.alert('Success', 'Referral code copied to clipboard!');
   };
 
   const handleCopyLink = async () => {
-    const referralLink = `${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralStats?.referralCode}`;
+    if (!referralData?.currentUser.referralCode) return;
+    const referralLink = `${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralData.currentUser.referralCode}`;
     await Clipboard.setStringAsync(referralLink);
     Alert.alert('Success', 'Referral link copied to clipboard!');
   };
 
   const handleShare = async () => {
-    if (!referralStats) return;
+    if (!referralData) return;
     
     try {
-      const referralLink = `${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralStats.referralCode}`;
-      const message = `Join GramXR using my referral code: ${referralStats.referralCode}. Sign up here: ${referralLink}`;
+      const referralLink = `${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralData.currentUser.referralCode}`;
+      const message = `Join GramXR using my referral code: ${referralData.currentUser.referralCode}. Sign up here: ${referralLink}`;
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
         await Sharing.shareAsync(message);
@@ -109,20 +129,40 @@ export default function ReferralsScreen() {
           <View style={styles.statRow}>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Total Referrals</Text>
-              <Text style={styles.statValue}>{referralStats?.totalReferrals || 0}</Text>
+              <Text style={styles.statValue}>{referralData?.currentUser.referralCount || 0}</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statLabel}>Total Earnings</Text>
-              <Text style={styles.statValue}>{referralStats?.referralEarnings || 0} tokens</Text>
+              <Text style={styles.statValue}>{referralData?.currentUser.referralEarnings || 0} tokens</Text>
+            </View>
+          </View>
+          <View style={[styles.statRow, { marginTop: 16 }]}>
+            <View style={styles.stat}>
+              <Text style={styles.statLabel}>Total Shares</Text>
+              <Text style={styles.statValue}>{referralData?.summary.totalShares || 0}</Text>
+            </View>
+            <View style={styles.stat}>
+              <Text style={styles.statLabel}>Avg. Tokens/Referral</Text>
+              <Text style={styles.statValue}>{referralData?.summary.averageTokensPerReferred || 0}</Text>
             </View>
           </View>
         </LinearGradient>
       </View>
 
+      {referralData?.referredBy && (
+        <View style={styles.referredBySection}>
+          <Text style={styles.sectionTitle}>Referred By</Text>
+          <View style={styles.referredByContainer}>
+            <Text style={styles.referredByText}>{referralData.referredBy.name}</Text>
+            <Text style={styles.referredByCode}>Code: {referralData.referredBy.referralCode}</Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.referralCodeSection}>
         <Text style={styles.sectionTitle}>Your Referral Code</Text>
         <View style={styles.referralCodeContainer}>
-          <Text style={styles.referralCode}>{referralStats?.referralCode || 'N/A'}</Text>
+          <Text style={styles.referralCode}>{referralData?.currentUser.referralCode || 'N/A'}</Text>
           <TouchableOpacity style={styles.copyButton} onPress={handleCopyCode}>
             <Ionicons name="copy-outline" size={20} color="#FFD700" />
           </TouchableOpacity>
@@ -133,7 +173,7 @@ export default function ReferralsScreen() {
         <Text style={styles.sectionTitle}>Your Referral Link</Text>
         <View style={styles.referralLinkContainer}>
           <Text style={styles.referralLink} numberOfLines={1} ellipsizeMode="middle">
-            {referralStats?.referralLink || `${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralStats?.referralCode}`}
+            {`${process.env.FRONTEND_URL || 'https://gramx.netlify.app'}/register?ref=${referralData?.currentUser.referralCode}`}
           </Text>
           <TouchableOpacity style={styles.copyButton} onPress={handleCopyLink}>
             <Ionicons name="copy-outline" size={20} color="#FFD700" />
@@ -239,6 +279,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
     marginBottom: 12,
+  },
+  referredBySection: {
+    marginBottom: 24,
+  },
+  referredByContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  referredByText: {
+    color: '#FFF',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  referredByCode: {
+    color: '#FFD700',
+    fontSize: 14,
   },
   referralCodeSection: {
     marginBottom: 24,
