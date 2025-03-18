@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { auth } from './auth';
 
+// Choose which API URL to use (uncomment one)
 // const API_BASE_URL = 'http://localhost:3000';
 const API_BASE_URL = 'https://gramx-be.onrender.com';
-
 
 // Create axios instance with default config
 const api = axios.create({
@@ -37,8 +37,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     console.error('API Error:', error.response?.data || error.message);
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Token expired or invalid
+    
+    // Only handle 401 errors for authenticated endpoints, not for login/signup/validation
+    if ((error.response?.status === 401 || error.response?.status === 403) &&
+        !error.config.url.includes('/auth/login') &&
+        !error.config.url.includes('/auth/signup') &&
+        !error.config.url.includes('/validate')) {
+      console.log('API interceptor: 401/403 error detected, logging out');
       await auth.logout(); // This will trigger the authError event
     }
     return Promise.reject(error);

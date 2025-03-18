@@ -4,11 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router, useRouter } from 'expo-router';
 import { auth } from '../services/auth';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/auth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -18,19 +20,24 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
+      console.log('Attempting login with:', { email });
       const result = await auth.login(email, password);
-      console.log(result);
+      
       if (result.success && result.token) {
-        // Token is automatically saved by the auth service
-        window.dispatchEvent(new Event('userChange')); // Update app state
-        // Delay navigation until the component is fully mounted
+        console.log('Login successful, token received');
+        // Use the signIn method from auth context to properly set up authentication
+        await signIn(result.token);
+        console.log('User signed in, navigating to tabs');
+        
+        // Delay navigation to ensure all state is updated
         setTimeout(() => {
           router.replace('/(tabs)');
-        }, 0);
+        }, 100);
       } else {
         Alert.alert('Error', result.message || 'Login failed');
       }
     } catch (error: any) {
+      console.error('Login failed:', error);
       Alert.alert('Error', error.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);

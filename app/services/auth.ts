@@ -1,6 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Choose which API URL to use (uncomment one)
 // const API_BASE_URL = 'http://localhost:3000';
 const API_BASE_URL = 'https://gramx-be.onrender.com';
 
@@ -65,11 +66,14 @@ authApi.interceptors.request.use(
 authApi.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    // Only handle 401 errors for authenticated endpoints, not for login/signup
+    if (error.response?.status === 401 && 
+        !error.config.url.includes('/auth/login') && 
+        !error.config.url.includes('/auth/signup')) {
+      console.log('Auth interceptor: 401 error detected, logging out');
       await auth.logout();
       // Dispatch an event to notify the app about auth error
-      const event = new Event('authError');
-      window?.dispatchEvent(event);
+      window?.dispatchEvent?.(new Event('authError'));
     }
     return Promise.reject(error);
   }
@@ -235,31 +239,31 @@ export const auth = {
       // Always try local storage first as it's fastest
       const base64Image = await AsyncStorage.getItem(PROFILE_IMAGE_KEY);
       if (base64Image) {
-        console.log('Auth: Found profile image in AsyncStorage');
+        // console.log('Auth: Found profile image in AsyncStorage');
         return base64Image;
       }
       
       // If not in local storage, check the user object
       const userStr = await AsyncStorage.getItem(USER_KEY);
       if (!userStr) {
-        console.log('Auth: No user found in storage');
+        // console.log('Auth: No user found in storage');
         return null;
       }
       
       const user = JSON.parse(userStr);
       if (!user.profileImage) {
-        console.log('Auth: User has no profile image');
+        // console.log('Auth: User has no profile image');
         return null;
       }
       
       if (user.profileImage === 'local') {
-        console.log('Auth: User profile is marked as local but image not found');
+        // console.log('Auth: User profile is marked as local but image not found');
         return null;
       }
       
       // If it's already a base64 image in the user object, store it and return
       if (user.profileImage.startsWith('data:image')) {
-        console.log('Auth: Saving base64 image from user to AsyncStorage');
+        // console.log('Auth: Saving base64 image from user to AsyncStorage');
         await AsyncStorage.setItem(PROFILE_IMAGE_KEY, user.profileImage);
         
         // Update user to indicate image is stored locally
@@ -269,10 +273,10 @@ export const auth = {
         return user.profileImage;
       }
       
-      console.log('Auth: Returning remote image URL');
+      // console.log('Auth: Returning remote image URL');
       return user.profileImage;
     } catch (error) {
-      console.error('Error getting profile image:', error);
+      // console.error('Error getting profile image:', error);
       return null;
     }
   },

@@ -34,7 +34,7 @@ export default function ProfileImage({
       try {
         const cachedImage = await AsyncStorage.getItem(PROFILE_IMAGE_KEY);
         if (cachedImage) {
-          console.log('ProfileImage: Preloaded from AsyncStorage');
+          // console.log('ProfileImage: Preloaded from AsyncStorage');
           setImage(cachedImage);
         }
       } catch (error) {
@@ -60,7 +60,7 @@ export default function ProfileImage({
       // First try to get the image directly from auth service
       const profileImage = await auth.getProfileImage();
       if (profileImage) {
-        console.log('ProfileImage: Loaded image from auth.getProfileImage()');
+        // console.log('ProfileImage: Loaded image from auth.getProfileImage()');
         setImage(profileImage);
         setLoading(false);
         return;

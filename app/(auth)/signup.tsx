@@ -151,7 +151,7 @@ export default function SignupScreen() {
       // Append image if selected
       if (selectedImage) {
         try {
-          console.log('Processing selected image:', selectedImage);
+          // console.log('Processing selected image:', selectedImage);
           
           // Get base64 data from the image
           const response = await fetch(selectedImage);
@@ -174,7 +174,7 @@ export default function SignupScreen() {
           reader.readAsDataURL(blob);
           const base64Image = await base64Promise;
           
-          console.log('Base64 image generated successfully');
+          // console.log('Base64 image generated successfully');
           
           // Store the base64 image in AsyncStorage
           await AsyncStorage.setItem('@profile_image', base64Image);
@@ -202,20 +202,31 @@ export default function SignupScreen() {
       console.log('Signup response:', response);
 
       if (response.success && response.token) {
+        console.log('Signup successful, token received');
+        
         // Store the profile image if it exists in the response
         if (response.user?.profileImage) {
-          console.log('Profile image from response:', response.user.profileImage.substring(0, 50));
+          console.log('Profile image received in response');
           if (response.user.profileImage.startsWith('data:image')) {
             console.log('Storing base64 image from response');
             await AsyncStorage.setItem('@profile_image', response.user.profileImage);
-            // Update user object to indicate local storage
-            response.user.profileImage = 'local';
           }
         }
         
-        // Sign in and navigate
-        await signIn(response.token);
-        router.replace('/(tabs)');
+        // Sign in using the auth context
+        try {
+          console.log('Signing in user after signup');
+          await signIn(response.token);
+          console.log('User signed in, navigating to tabs');
+          
+          // Delay navigation to ensure all state is updated
+          setTimeout(() => {
+            router.replace('/(tabs)');
+          }, 100);
+        } catch (signInError) {
+          console.error('Error signing in after signup:', signInError);
+          throw new Error('Account created but failed to sign in. Please try logging in.');
+        }
       } else {
         throw new Error(response.message || 'Failed to sign up');
       }

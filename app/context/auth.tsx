@@ -34,10 +34,10 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userData && userData.profileImage) {
           if (userData.profileImage === 'local') {
             // Image should be in AsyncStorage already from init()
-            console.log('Auth Context: Profile image is stored locally');
+            // console.log('Auth Context: Profile image is stored locally');
           } else if (userData.profileImage.startsWith('data:image')) {
             // Store the image in AsyncStorage
-            console.log('Auth Context: Storing base64 image in AsyncStorage');
+            // console.log('Auth Context: Storing base64 image in AsyncStorage');
             await auth.setUser({
               ...userData,
               profileImage: 'local' // This will trigger storage in AsyncStorage
@@ -57,11 +57,25 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (token: string) => {
     try {
+      console.log('Auth Context: Setting token and fetching user data');
       await auth.setToken(token);
       const userData = await auth.getUser();
+      console.log('Auth Context: User data fetched:', userData ? 'success' : 'null');
+      
+      if (!userData) {
+        console.error('Auth Context: Failed to get user data after token set');
+        throw new Error('Failed to get user data');
+      }
+      
       setUser(userData);
+      
+      // Initialize auth service to ensure any profile image is properly loaded
+      await auth.init();
+      
+      console.log('Auth Context: Sign in complete');
     } catch (error) {
       console.error('Error signing in:', error);
+      await signOut(); // Clear any partial authentication state
       throw error;
     }
   };

@@ -8,7 +8,7 @@ import { Alert } from 'react-native';
 import api, { Batch, User } from '../services/api';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import * as auth from '../services/auth';
+import { auth } from '../services/auth';
 import UserMenu from '../components/UserMenu';
 import { useAuth } from '../context/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,11 +17,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const animatedBorder = new Animated.Value(0);
   const animatedCount = new Animated.Value(0);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentBatch, setCurrentBatch] = useState<Batch | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { user: currentUser, signOut } = useAuth();
   
   // Add animation effect
   useEffect(() => {
@@ -45,31 +44,42 @@ export default function HomeScreen() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        console.log('Home Screen: Fetching data');
+        
+        // Initialize auth service to ensure profile image is loaded
+        await auth.init();
+        console.log('Home Screen: Auth service initialized');
+        
         // Debug: Check stored data
         const storedUser = await AsyncStorage.getItem('@user_data');
         const storedImage = await AsyncStorage.getItem('@profile_image');
-        console.log('Debug - Stored user:', storedUser ? JSON.parse(storedUser) : null);
-        console.log('Debug - Stored image exists:', !!storedImage);
+        const storedToken = await AsyncStorage.getItem('@auth_token');
+        // console.log('Home Screen Debug - Token exists:', !!storedToken);
+        // console.log('Home Screen Debug - User exists:', !!storedUser);
+        // console.log('Home Screen Debug - Image exists:', !!storedImage);
         
-        const [user, batch] = await Promise.all([
-          api.getCurrentUser(),
-          api.getCurrentBatch()
-        ]);
+        // Check if we have a user from context
+        console.log('Home Screen Debug - Context user exists:', !!currentUser);
         
-        if (!user) {
-          // If no user data, redirect to login
+        if (!currentUser) {
+          console.log('Home Screen: No user in context, redirecting to login');
           await signOut();
           router.replace('/(auth)/login');
           return;
         }
         
-        setCurrentUser(user);
-        console.log(user)
+        // User data is already available through auth context
+        // Just fetch the batch data
+        console.log('Home Screen: Fetching batch data');
+        const batch = await api.getCurrentBatch();
+        console.log('Home Screen: Batch data fetched successfully');
+        
         setCurrentBatch(batch);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Home Screen: Error fetching data:', error);
         // If error is auth-related, redirect to login
         if ((error as any)?.response?.status === 401) {
+          console.log('Home Screen: Auth error, redirecting to login');
           await signOut();
           router.replace('/(auth)/login');
           return;
@@ -84,7 +94,7 @@ export default function HomeScreen() {
     };
 
     fetchData();
-  }, [router, signOut]);
+  }, [router, signOut, currentUser]);
 
   const handleCopyCode = async () => {
     const referralCode = currentUser?.referralCode || '';
@@ -115,7 +125,7 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.username}>{currentUser?.name}</Text>
         </View>
-        <UserMenu user={currentUser} onImageUpdate={setCurrentUser} />
+        <UserMenu user={currentUser} />
       </View>
 
       <View style={styles.statsContainer}>
