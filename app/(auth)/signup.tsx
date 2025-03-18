@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, Platform } from 'react-native';
 import { Link, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../services/auth';
 import apiService from '../services/api';
-import ProfileImage from '../components/ProfileImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignupScreen() {
   const params = useLocalSearchParams();
@@ -23,8 +23,7 @@ export default function SignupScreen() {
   const [referrerName, setReferrerName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileImage, setProfileImage] = useState<any>(null);
-  const [imageUrl, setImageUrl] = useState<string>('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Check for referral code in URL params
   useEffect(() => {
@@ -38,6 +37,31 @@ export default function SignupScreen() {
     
     checkReferralCode();
   }, [params]);
+
+  const pickImage = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
 
   const validateReferralCode = async (code: string) => {
     if (!code) return;
@@ -112,23 +136,97 @@ export default function SignupScreen() {
         return;
       }
 
-      const response = await apiService.signup({
-        name,
-        email,
-        password,
-        referralCode: referralCode ? referralCode.toUpperCase() : undefined,
-        profileImage: imageUrl || undefined
+      // Create FormData object
+      const formData = new FormData();
+      
+      // Append user data
+      formData.append('name', String(name).trim());
+      formData.append('email', String(email).trim().toLowerCase());
+      formData.append('password', String(password));
+      
+      if (referralCode) {
+        formData.append('referralCode', String(referralCode).toUpperCase().trim());
+      }
+
+      // Append image if selected
+      if (selectedImage) {
+        try {
+          console.log('Processing selected image:', selectedImage);
+          
+          // Get base64 data from the image
+          const response = await fetch(selectedImage);
+          const blob = await response.blob();
+          
+          // Convert blob to base64
+          const reader = new FileReader();
+          
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              if (typeof reader.result === 'string') {
+                resolve(reader.result);
+              } else {
+                reject(new Error('Failed to convert image to base64'));
+              }
+            };
+            reader.onerror = (error) => reject(error);
+          });
+          
+          reader.readAsDataURL(blob);
+          const base64Image = await base64Promise;
+          
+          console.log('Base64 image generated successfully');
+          
+          // Store the base64 image in AsyncStorage
+          await AsyncStorage.setItem('@profile_image', base64Image);
+          
+          // Add the base64 image to the form data
+          formData.append('profileImage', base64Image);
+          
+          // Set the profile image type to local in the form data
+          formData.append('profileImageType', 'local');
+        } catch (error) {
+          console.error('Error processing image:', error);
+        }
+      }
+
+      // Log signup data (excluding password)
+      console.log('Sending signup data:', {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        referralCode: referralCode ? referralCode.toUpperCase().trim() : undefined,
+        hasImage: !!selectedImage
       });
 
+      // Attempt signup
+      const response = await apiService.signup(formData);
+      console.log('Signup response:', response);
+
       if (response.success && response.token) {
+        // Store the profile image if it exists in the response
+        if (response.user?.profileImage) {
+          console.log('Profile image from response:', response.user.profileImage.substring(0, 50));
+          if (response.user.profileImage.startsWith('data:image')) {
+            console.log('Storing base64 image from response');
+            await AsyncStorage.setItem('@profile_image', response.user.profileImage);
+            // Update user object to indicate local storage
+            response.user.profileImage = 'local';
+          }
+        }
+        
+        // Sign in and navigate
         await signIn(response.token);
         router.replace('/(tabs)');
       } else {
-        setError(response.message || 'Failed to sign up');
+        throw new Error(response.message || 'Failed to sign up');
       }
     } catch (error: any) {
       console.error('Signup error:', error);
-      setError(error.message || 'Failed to sign up');
+      
+      if (error.message.includes('already exists')) {
+        setError('An account with this email already exists. Please login instead.');
+      } else {
+        setError(error.message || 'Failed to sign up. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -142,6 +240,19 @@ export default function SignupScreen() {
       </View>
 
       <View style={styles.form}>
+        <TouchableOpacity style={styles.imagePickerContainer} onPress={pickImage}>
+          {selectedImage ? (
+            <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="camera" size={40} color="#FFD700" />
+            </View>
+          )}
+          <Text style={styles.addPhotoText}>
+            {selectedImage ? 'Change Photo' : 'Add Profile Photo'}
+          </Text>
+        </TouchableOpacity>
+
         <TextInput
           style={styles.input}
           placeholder="Name"
@@ -168,14 +279,6 @@ export default function SignupScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Image URL (optional)"
-          placeholderTextColor="#666"
-          value={imageUrl}
-          onChangeText={setImageUrl}
         />
 
         <View style={styles.referralContainer}>
@@ -263,9 +366,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
+  imagePlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    marginBottom: 8,
+  },
+  selectedImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
   addPhotoText: {
     color: '#FFD700',
-    marginTop: 8,
     fontSize: 16,
   },
   form: {

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { auth } from './auth';
 
-// const API_BASE_URL = 'http://localhost:3000';
-const API_BASE_URL = 'https://gramx-be.onrender.com';
+const API_BASE_URL = 'http://localhost:3000';
+// const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 
 // Create axios instance with default config
@@ -126,13 +126,14 @@ export interface SignupData {
   email: string;
   password: string;
   referralCode?: string;
-  profileImage?: string;
+  profileImage?: string | FormData;
 }
 
 export interface SignupResponse {
   success: boolean;
   message?: string;
   token?: string;
+  user?: User;
 }
 
 export interface ReferralResponse {
@@ -283,13 +284,84 @@ export const apiService = {
     }
   },
 
-  async signup(data: SignupData): Promise<SignupResponse> {
+  async signup(data: SignupData | FormData): Promise<SignupResponse> {
     try {
-      const response = await api.post('/auth/signup', data);
-      return response.data;
+      const isFormData = data instanceof FormData;
+      
+      // Set proper headers based on data type
+      const headers: any = isFormData ? {
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json'
+      } : {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+
+      // Configure request options
+      const config = {
+        headers,
+        transformRequest: isFormData ? [(data: any) => data] : undefined,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+        timeout: 30000
+      };
+
+      // Log request configuration (excluding sensitive data)
+      console.log('Signup request config:', {
+        isFormData,
+        contentType: headers['Content-Type'],
+        hasTransformRequest: !!config.transformRequest
+      });
+
+      const response = await api.post('/auth/signup', data, config);
+
+      // Log response (excluding sensitive data)
+      console.log('Signup response:', {
+        status: response.status,
+        success: response.data?.success,
+        hasToken: !!response.data?.token,
+        hasUser: !!response.data?.user
+      });
+
+      // Validate response
+      if (!response.data) {
+        throw new Error('No response data received');
+      }
+
+      // Store user data and token if available
+      if (response.data.token) {
+        await auth.setToken(response.data.token);
+        if (response.data.user) {
+          await auth.setUser(response.data.user);
+        }
+      }
+
+      // Return standardized response
+      return {
+        success: true,
+        token: response.data.token,
+        message: response.data.message || 'Signup successful',
+        user: response.data.user
+      };
     } catch (error: any) {
-      console.error('Signup error:', error);
-      throw new Error(error.response?.data?.message || 'Failed to sign up');
+      // Log error details (excluding sensitive data)
+      console.error('Signup error:', {
+        name: error.name,
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+
+      // Handle specific error cases
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else if (error.message.includes('Network Error')) {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
+
+      throw new Error('Failed to sign up. Please try again.');
     }
   },
 

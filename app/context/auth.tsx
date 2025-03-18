@@ -22,9 +22,29 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUser = async () => {
     try {
       setIsLoading(true);
+      
+      // Initialize auth service first
+      await auth.init();
+      
       const token = await auth.getToken();
       if (token) {
         const userData = await auth.getUser();
+        
+        // Pre-load profile image to ensure it's in AsyncStorage
+        if (userData && userData.profileImage) {
+          if (userData.profileImage === 'local') {
+            // Image should be in AsyncStorage already from init()
+            console.log('Auth Context: Profile image is stored locally');
+          } else if (userData.profileImage.startsWith('data:image')) {
+            // Store the image in AsyncStorage
+            console.log('Auth Context: Storing base64 image in AsyncStorage');
+            await auth.setUser({
+              ...userData,
+              profileImage: 'local' // This will trigger storage in AsyncStorage
+            });
+          }
+        }
+        
         setUser(userData);
       }
     } catch (error) {

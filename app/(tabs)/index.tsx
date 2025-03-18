@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import * as auth from '../services/auth';
 import UserMenu from '../components/UserMenu';
 import { useAuth } from '../context/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -44,6 +45,12 @@ export default function HomeScreen() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Debug: Check stored data
+        const storedUser = await AsyncStorage.getItem('@user_data');
+        const storedImage = await AsyncStorage.getItem('@profile_image');
+        console.log('Debug - Stored user:', storedUser ? JSON.parse(storedUser) : null);
+        console.log('Debug - Stored image exists:', !!storedImage);
+        
         const [user, batch] = await Promise.all([
           api.getCurrentUser(),
           api.getCurrentBatch()
