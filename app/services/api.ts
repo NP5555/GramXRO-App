@@ -2,8 +2,8 @@ import axios from 'axios';
 import { auth } from './auth';
 
 // Choose which API URL to use (uncomment one)
-const API_BASE_URL = 'http://localhost:3000';
-// const API_BASE_URL = 'https://gramx-be.onrender.com';
+// const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -341,7 +341,7 @@ export const apiService = {
       //   };
       // }
 
-      const response = await api.get(`/user/referral/validate/${upperCode}`);
+      const response = await api.get(`/users/referral/validate/${upperCode}`);
       return response.data;
     } catch (error: any) {
       console.error('Error validating referral code:', error);
@@ -444,7 +444,7 @@ export const apiService = {
       const token = await auth.getToken();
       console.log('Token being used:', token);
 
-      const response = await api.get('/user/referrals', {
+      const response = await api.get('/users/referrals', {
         headers: {
           'Accept': 'application/json',
           // Explicitly set the Authorization header for debugging
