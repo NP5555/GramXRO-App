@@ -2,8 +2,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Choose which API URL to use (uncomment one)
-// const API_BASE_URL = 'http://localhost:3000';
-const API_BASE_URL = 'https://gramx-be.onrender.com';
+const API_BASE_URL = 'http://localhost:3000';
+// const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 const TOKEN_KEY = '@auth_token';
 const USER_KEY = '@user_data';
@@ -34,6 +34,12 @@ export interface UpdateProfileImageResponse {
   success: boolean;
   user?: User;
   message?: string;
+}
+
+interface VerificationState {
+  taskId: string;
+  platform: string;
+  timestamp: number;
 }
 
 // Create axios instance with default config
@@ -341,6 +347,32 @@ export const auth = {
       await AsyncStorage.removeItem(PROFILE_IMAGE_KEY);
     } catch (error) {
       console.error('Error clearing profile image:', error);
+    }
+  },
+
+  async setVerificationState(state: VerificationState): Promise<void> {
+    try {
+      await AsyncStorage.setItem('verificationState', JSON.stringify(state));
+    } catch (error) {
+      console.error('Error saving verification state:', error);
+    }
+  },
+
+  async getVerificationState(): Promise<VerificationState | null> {
+    try {
+      const state = await AsyncStorage.getItem('verificationState');
+      return state ? JSON.parse(state) : null;
+    } catch (error) {
+      console.error('Error getting verification state:', error);
+      return null;
+    }
+  },
+
+  async clearVerificationState(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem('verificationState');
+    } catch (error) {
+      console.error('Error clearing verification state:', error);
     }
   },
 };

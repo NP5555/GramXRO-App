@@ -2,8 +2,8 @@ import axios from 'axios';
 import { auth } from './auth';
 
 // Choose which API URL to use (uncomment one)
-// const API_BASE_URL = 'http://localhost:3000';
-const API_BASE_URL = 'https://gramx-be.onrender.com';
+const API_BASE_URL = 'http://localhost:3000';
+// const API_BASE_URL = 'https://gramx-be.onrender.com';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -81,10 +81,26 @@ export interface LeaderboardEntry {
   userId: string | null;
 }
 
+interface BackendLeaderboardEntry {
+  _id: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  coins: number;
+  shares: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
 export interface Task {
   _id: string;
   task: string;
   reward: number;
+  type?: string;  // Add type to identify OAuth tasks
+  platform?: string; // Platform for OAuth (YouTube, Twitter, etc.)
 }
 
 export interface ApiResponse<T> {
@@ -146,6 +162,28 @@ export interface ReferralResponse {
   data: ReferralStats;
 }
 
+export interface OAuthUrlResponse {
+  success: boolean;
+  url: string;
+  message?: string;
+}
+
+export interface OAuthVerificationResponse {
+  success: boolean;
+  verified: boolean;
+  newBalance?: number;
+  message?: string;
+  verificationDetails?: {
+    isSubscribed?: boolean;
+    isFollowing?: boolean;
+    hasJoined?: boolean;
+    platform?: string;
+    platformUserId?: string;
+    platformUsername?: string;
+    verificationTimestamp?: number;
+  }
+}
+
 export const apiService = {
   async getCurrentUser(): Promise<User> {
     try {
@@ -180,9 +218,22 @@ export const apiService = {
 
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-      const response = await api.get('/leaderboard');
-      console.log('Leaderboard response:', response.data);
-      return response.data;
+      const response = await api.get('/admin/leaderboard');
+      console.log('Raw leaderboard response:', response.data);
+
+      // Transform the data into the expected format
+      const transformedData: LeaderboardEntry[] = response.data
+        .sort((a: BackendLeaderboardEntry, b: BackendLeaderboardEntry) => b.coins - a.coins)
+        .map((entry: BackendLeaderboardEntry, index: number) => ({
+          position: index + 1,
+          name: entry.userId.name || 'Anonymous',
+          coins: entry.coins,
+          shares: entry.shares,
+          userId: entry.userId._id
+        }));
+
+      console.log('Transformed leaderboard data:', transformedData);
+      return transformedData;
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
       throw error;
@@ -209,7 +260,15 @@ export const apiService = {
         throw new Error('Task is required');
       }
       
-      const response = await api.post('/tasks/complete', { task });
+      // Log the request payload for debugging
+      console.log('Sending task completion request:', { task });
+      
+      const response = await api.post('/tasks/complete', { task }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
       console.log('Task completion response:', response.data);
       
       if (!response.data.success) {
@@ -219,6 +278,15 @@ export const apiService = {
       return response.data;
     } catch (error: any) {
       console.error('Error completing task:', error);
+      // Log the full error response for debugging
+      if (error.response) {
+        console.error('Error response:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
+      
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       } else if (error.response?.data?.error) {
@@ -399,6 +467,103 @@ export const apiService = {
         throw new Error(error.response.data.details);
       }
       throw new Error('Failed to fetch user referrals');
+    }
+  },
+
+  // New methods for OAuth verification
+
+  async initiateTaskVerification(taskId: string): Promise<OAuthUrlResponse> {
+    try {
+      const response = await api.get(`/tasks/verify/${taskId}`);
+      console.log('Task verification initiation response:', response.data);
+      
+      if (!response.data.success || !response.data.url) {
+        throw new Error(response.data.message || 'Failed to initiate task verification');
+      }
+      
+      // Store task ID and platform for verification
+      await auth.setVerificationState({
+        taskId,
+        platform: response.data.platform,
+        timestamp: Date.now()
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Error initiating task verification:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw new Error('Failed to initiate task verification. Please try again later.');
+    }
+  },
+
+  async completeTaskVerification(code: string, state: string): Promise<OAuthVerificationResponse> {
+    try {
+      // Get stored verification state
+      const verificationState = await auth.getVerificationState();
+      if (!verificationState) {
+        throw new Error('Invalid verification state');
+      }
+
+      // Add verification state to request
+      const response = await api.post('/tasks/verify/callback', { 
+        code, 
+        state,
+        taskId: verificationState.taskId,
+        platform: verificationState.platform,
+        initiatedAt: verificationState.timestamp
+      });
+
+      console.log('Task verification completion response:', response.data);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to complete task verification');
+      }
+
+      // Check if the actual task requirements are met
+      if (!response.data.verificationDetails) {
+        throw new Error('Verification details not provided by server');
+      }
+
+      const { isSubscribed, isFollowing, hasJoined, platform } = response.data.verificationDetails;
+      
+      // Verify based on platform-specific requirements
+      let verified = false;
+      switch (platform) {
+        case 'youtube':
+          verified = isSubscribed === true;
+          if (!verified) throw new Error('YouTube subscription not found. Please subscribe to the channel.');
+          break;
+        case 'twitter':
+          verified = isFollowing === true;
+          if (!verified) throw new Error('Twitter follow not detected. Please follow the account.');
+          break;
+        case 'discord':
+          verified = hasJoined === true;
+          if (!verified) throw new Error('Discord server join not detected. Please join the server.');
+          break;
+        case 'telegram':
+          verified = hasJoined === true;
+          if (!verified) throw new Error('Telegram group join not detected. Please join the group.');
+          break;
+        default:
+          throw new Error('Unsupported platform');
+      }
+      
+      // Clear verification state after successful verification
+      await auth.clearVerificationState();
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Error completing task verification:', error);
+      // Clear verification state on error
+      await auth.clearVerificationState();
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw new Error('Failed to complete task verification. Please try again later.');
     }
   },
 };
